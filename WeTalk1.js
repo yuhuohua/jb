@@ -89,11 +89,10 @@ async function handleTask() {
     logData.date = todayStr;
   }
 
-  const currentRunStr = results.join('\n———\n');
-  logData.logs.push(`🕒 【${timeStr} 运行记录】\n${currentRunStr}`);
+  const currentRunStr = results.join('\n');
+  logData.logs.push(`🕒 ${timeStr}\n${currentRunStr}`);
   
   const currentHour = now.getHours();
-
   let notifyMode = '1'; 
   if (typeof $argument !== 'undefined' && $argument) {
     notifyMode = String($argument).trim();
@@ -103,7 +102,7 @@ async function handleTask() {
     $.notify(`🎉 WeTalk 当前签到 (${total}个账号)`, "", currentRunStr);
   } else {
     if (currentHour === 22 && !logData.notified) {
-      $.notify(`🎉 WeTalk 每日总汇 (${total}个账号)`, "以下是今日所有的运行记录：", logData.logs.join('\n\n==========\n\n'));
+      $.notify(`🎉 WeTalk 每日总汇 (${total}个账号)`, "", logData.logs.join('\n- - - - - - - - -\n'));
       logData.notified = true;
     } else if (currentHour !== 22) {
       console.log(`【已记录当前执行结果 - 等待22点总汇通知】\n\n${currentRunStr}`);
@@ -113,7 +112,6 @@ async function handleTask() {
   }
   
   $.setdata(JSON.stringify(logData), logKey);
-
   $.done();
 }
 
@@ -139,7 +137,7 @@ async function runAccount(acc, index, total) {
   const tag = `[账号${index+1}/${total} ${acc.alias || acc.id}]`;
   const ua = buildUA(acc.baseUA, acc.uaSeed);
   const headers = buildHeaders(acc.capture, ua);
-  const msgs = [tag];
+  const msgs = [];
 
   const fetchApi = (path) => {
     return $.get({ url: buildUrl(path, acc.capture), headers });
@@ -148,29 +146,49 @@ async function runAccount(acc, index, total) {
   try {
     let res = await fetchApi('queryBalanceAndBonus');
     let d = JSON.parse(res.body);
-    if (d.retcode === 0) msgs.push(`💰 余额：${d.result.balance} Coins`);
-    else msgs.push(`⚠️ 查询：${d.retmsg}`);
+    let oldBalance = '?';
+    if (d.retcode === 0) {
+        oldBalance = d.result.balance;
+    } else {
+        msgs.push(`⚠️ 查询异常：${d.retmsg}`);
+    }
 
     res = await fetchApi('checkIn');
     d = JSON.parse(res.body);
-    if (d.retcode === 0) msgs.push(`✅ 签到：${(d.result?.bonusHint || d.retmsg || '').replace(/\n/g, ' ')}`);
-    else msgs.push(`⚠️ 签到：${d.retmsg}`);
+    if (d.retcode === 0) {
+        msgs.push(`✅ 签到：${(d.result?.bonusHint || d.retmsg || '').replace(/\n/g, ' ')}`);
+    } else {
+        msgs.push(`⚠️ 签到：${d.retmsg}`);
+    }
 
+    let videoCount = 0;
+    let videoEarn = 0;
+    let videoFailMsg = '';
+    
     for (let i = 1; i <= MAX_VIDEO; i++) {
       await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
       res = await fetchApi('videoBonus');
       d = JSON.parse(res.body);
       if (d.retcode === 0) {
-        msgs.push(`🎬 视频${i}：+${d.result?.bonus || '?'} Coins`);
+        videoCount++;
+        videoEarn += parseFloat(d.result?.bonus || 0);
       } else {
-        msgs.push(`⏸ 视频${i}：${d.retmsg}`);
+        videoFailMsg = d.retmsg;
         break; 
       }
     }
 
+    if (videoCount > 0) msgs.push(`🎬 视频：+${videoEarn.toFixed(3)} Coins (${videoCount}次)`);
+    if (videoFailMsg) msgs.push(`⏸ 视频中断：${videoFailMsg}`);
+
     res = await fetchApi('queryBalanceAndBonus');
     d = JSON.parse(res.body);
-    if (d.retcode === 0) msgs.push(`💰 最新余额：${d.result.balance} Coins`);
+    let newBalance = '?';
+    if (d.retcode === 0) {
+        newBalance = d.result.balance;
+    }
+    
+    msgs.unshift(`${tag} 💰 ${oldBalance} ➔ ${newBalance}`);
 
   } catch (err) {
     msgs.push(`❌ 异常：${err || '请求失败'}`);
