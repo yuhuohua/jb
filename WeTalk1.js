@@ -70,7 +70,7 @@ async function handleTask() {
   }
 
   const logKey = 'wetalk_daily_log_v2';
-  let logData = { date: '', logs: [], notified: false };
+  let logData = { date: '', summary: [], notified: false }; 
   const rawLog = $.getdata(logKey);
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
@@ -80,18 +80,19 @@ async function handleTask() {
     try {
       logData = JSON.parse(rawLog);
       if (logData.date !== todayStr) {
-        logData = { date: todayStr, logs: [], notified: false };
+        logData = { date: todayStr, summary: [], notified: false };
       }
     } catch (e) {
-      logData = { date: todayStr, logs: [], notified: false };
+      logData = { date: todayStr, summary: [], notified: false };
     }
   } else {
     logData.date = todayStr;
   }
 
-  // 缩减空行，保持排版紧凑
-  const currentRunStr = results.join('\n');
-  logData.logs.push(`🕒 ${timeStr}\n${currentRunStr}`);
+  const currentFullRun = results.join('\n\n');
+  
+  const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
+  logData.summary.push(`🕒 ${timeStr}\n${briefRun}`);
   
   const currentHour = now.getHours();
   let notifyMode = '1'; 
@@ -100,23 +101,24 @@ async function handleTask() {
   }
 
   if (notifyMode === '0') {
-    $.notify(`🎉 WeTalk 当前签到 (${total}个账号)`, "", currentRunStr);
+    $.notify(`🎉 WeTalk 当前结果 (${total}个账号)`, "", currentFullRun);
   } else {
     if (currentHour === 22 && !logData.notified) {
-      // 使用更紧凑的分割线防止超长
-      $.notify(`🎉 WeTalk 每日总汇 (${total}个账号)`, "", logData.logs.join('\n- - - - - - - - -\n'));
+      $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'));
       logData.notified = true;
-    } else if (currentHour !== 22) {
-      console.log(`【已记录当前执行结果 - 等待22点总汇通知】\n\n${currentRunStr}`);
     } else {
-      console.log(`【22点已发送过总汇，本次仅记录不再通知】\n\n${currentRunStr}`);
+      console.log(`【本次执行详情】\n${currentFullRun}`);
+      if (currentHour === 22) {
+        console.log(`【22点已发送过总汇，不再重复通知】`);
+      } else {
+        console.log(`【已记录变动，待22点汇总通知】`);
+      }
     }
   }
   
   $.setdata(JSON.stringify(logData), logKey);
   $.done();
 }
-
 
 function loadStore() {
   const raw = $.getdata(storeKey);
@@ -135,9 +137,8 @@ function saveStore(store) {
   $.setdata(JSON.stringify(store), storeKey);
 }
 
-// ============== 核心修改部分：极简日志输出 ==============
 async function runAccount(acc, index, total) {
-  const tag = `[账号${index+1}/${total} ${acc.alias || acc.id}]`;
+  const tag = `[账号${index+1}/${total}]`;
   const ua = buildUA(acc.baseUA, acc.uaSeed);
   const headers = buildHeaders(acc.capture, ua);
   const msgs = [];
@@ -159,12 +160,12 @@ async function runAccount(acc, index, total) {
     res = await fetchApi('checkIn');
     d = JSON.parse(res.body);
     if (d.retcode === 0) {
-        msgs.push(`✅ 签到：${(d.result?.bonusHint || d.retmsg || '').replace(/\n/g, ' ')}`);
+        msgs.push(`✅签到成功`);
     } else {
-        msgs.push(`⚠️ 签到：${d.retmsg}`);
+        let msg = d.retmsg || '失败';
+        msgs.push(`⚠️签到：${msg}`);
     }
 
-    // 将 5 次视频请求合并统计
     let videoCount = 0;
     let videoEarn = 0;
     let videoFailMsg = '';
@@ -182,8 +183,8 @@ async function runAccount(acc, index, total) {
       }
     }
 
-    if (videoCount > 0) msgs.push(`🎬 视频：+${videoEarn.toFixed(3)} Coins (${videoCount}次)`);
-    if (videoFailMsg) msgs.push(`⏸ 视频中断：${videoFailMsg}`);
+    if (videoCount > 0) msgs.push(`🎬+${videoEarn.toFixed(3)}(${videoCount}次)`);
+    if (videoFailMsg) msgs.push(`⏸视频中断`);
 
     res = await fetchApi('queryBalanceAndBonus');
     d = JSON.parse(res.body);
@@ -192,16 +193,13 @@ async function runAccount(acc, index, total) {
         newBalance = d.result.balance;
     }
     
-    // 把账号名、旧余额和新余额合并在第一行
-    msgs.unshift(`${tag} 💰 ${oldBalance} ➔ ${newBalance}`);
+    msgs.unshift(`${tag} 💰${oldBalance}➔${newBalance}`);
 
   } catch (err) {
-    msgs.push(`❌ 异常：${err || '请求失败'}`);
+    msgs.push(`❌异常`);
   }
   return msgs.join('\n');
 }
-// ========================================================
-
 
 function MD5(string) {
   function RotateLeft(lValue, iShiftBits) { return (lValue << iShiftBits) | (lValue >>> (32 - iShiftBits)); }
