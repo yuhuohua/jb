@@ -1,4 +1,5 @@
 const $ = new Env("声荐组合任务");
+
 const ARGS = (() => {
     let mode = "0"; 
     if (typeof $argument !== "undefined" && $argument) {
@@ -11,7 +12,7 @@ const ARGS = (() => {
 
 const tokenKey = "shengjian_auth_token";
 const STATS_KEY = "shengjian_daily_stats";
-const LAST_RUN_HOUR = 22;
+const LAST_RUN_HOUR = 22; 
 
 const currentHour = new Date().getHours();
 const isLastRun = currentHour === LAST_RUN_HOUR;
@@ -36,19 +37,23 @@ const commonHeaders = {
   const currentResult = `${signRes.message} | ${flowerRes.message}`;
   const logWithTime = `[${currentHour}点] ${currentResult}`;
   
-  console.log(logWithTime);
-
   let dailyStats = getDailyStats();
   dailyStats.logs.push(logWithTime);
   saveDailyStats(dailyStats);
 
+  let modeTag = "";
   if (ARGS.notify === "1") {
+      modeTag = "【单次通知模式】";
       $.notify("🔔 声荐单次通知", `当前时间: ${currentHour}点`, currentResult);
   } else if (isLastRun) {
+      modeTag = "【汇总通知模式】";
       const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 运行次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
       $.notify("📊 声荐每日汇总", "", summaryBody);
+  } else {
+      modeTag = "【静默运行模式】";
   }
 
+  console.log(`${modeTag} ${logWithTime}`);
   $.done();
 })().catch((e) => { console.log(e); $.done(); });
 
