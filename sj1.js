@@ -1,19 +1,14 @@
 const $ = new Env("声荐组合任务");
 
-// ================= 参数解析 (专门兼容 Loon 的对象传参) =================
 const ARGS = (() => {
     let val = "0"; 
     if (typeof $argument !== "undefined" && $argument) {
-        // 如果 Loon 传过来的是对象 [object Object]
         if (typeof $argument === "object") {
-            // 尝试提取 summary_notify 键值，如果拿不到就取对象里的第一个值
             val = $argument.summary_notify || Object.values($argument)[0] || "0";
         } else {
-            // 如果是字符串，清理掉多余符号
             val = String($argument).trim().replace(/[\"\{\}\[\]]/g, "");
         }
     }
-    // 强制转换为字符串 "1" 或 "0"
     val = String(val) === "1" ? "1" : "0";
     return { notify: val };
 })();
@@ -35,7 +30,6 @@ const commonHeaders = {
   "Referer": "https://servicewechat.com/wxa25139b08fe6e2b6/23/page-frame.html"
 };
 
-// ================= 数据持久化 =================
 function getDailyStats() {
     const today = new Date().toISOString().slice(0, 10);
     let stats = {};
@@ -50,7 +44,6 @@ function saveDailyStats(stats) {
     $.write(JSON.stringify(stats), STATS_KEY);
 }
 
-// ================= 业务请求 =================
 function signIn() {
   return new Promise((resolve) => {
     $.put({ url: "https://xcx.myinyun.com:4438/napi/gift", headers: commonHeaders, body: "{}" }, (err, res, data) => {
@@ -73,9 +66,7 @@ function claimFlower() {
   });
 }
 
-// ================= 主逻辑 =================
 (async () => {
-  // 调试日志输出，确认参数是否正确解析
   console.log(`[调试] 收到原始参数类型: ${typeof $argument}`);
   console.log(`[调试] 收到原始参数内容: ${JSON.stringify($argument)}`);
   console.log(`[调试] 解析后的通知模式: ${ARGS.notify} (1:单次, 0:汇总)`);
@@ -93,12 +84,9 @@ function claimFlower() {
   dailyStats.logs.push(logWithTime);
   saveDailyStats(dailyStats);
 
-  // 核心判定逻辑
   if (ARGS.notify === "1") {
-      // 模式 1: 每次运行都弹窗（单次内容）
       $.notify("🔔 声荐单次通知", `时间: ${currentHour}点`, currentResult);
   } else if (isLastRun) {
-      // 模式 0: 仅在汇总时间进行汇总弹窗
       const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 运行次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
       $.notify("📊 声荐每日汇总", "", summaryBody);
   } else {
@@ -108,7 +96,6 @@ function claimFlower() {
   $.done();
 })().catch((e) => { console.log(e); $.done(); });
 
-// ================= Env 层 (精简版) =================
 function Env(name) {
   this.name = name;
   this.read = (k) => (typeof $persistentStore !== "undefined" ? $persistentStore.read(k) : $prefs.valueForKey(k));
