@@ -1,7 +1,6 @@
 const $ = new Env("声荐组合任务");
-
 const ARGS = (() => {
-    let mode = "0"; // 默认汇总模式
+    let mode = "0"; 
     if (typeof $argument !== "undefined" && $argument) {
         const argStr = typeof $argument === "string" ? $argument : JSON.stringify($argument);
         const match = argStr.match(/[01]/);
@@ -12,7 +11,7 @@ const ARGS = (() => {
 
 const tokenKey = "shengjian_auth_token";
 const STATS_KEY = "shengjian_daily_stats";
-const LAST_RUN_HOUR = 22; // 汇总通知时间
+const LAST_RUN_HOUR = 22;
 
 const currentHour = new Date().getHours();
 const isLastRun = currentHour === LAST_RUN_HOUR;
@@ -36,7 +35,7 @@ const commonHeaders = {
   const [signRes, flowerRes] = await Promise.all([signIn(), claimFlower()]);
   const currentResult = `${signRes.message} | ${flowerRes.message}`;
   const logWithTime = `[${currentHour}点] ${currentResult}`;
- 
+  
   console.log(logWithTime);
 
   let dailyStats = getDailyStats();
@@ -44,10 +43,8 @@ const commonHeaders = {
   saveDailyStats(dailyStats);
 
   if (ARGS.notify === "1") {
-      // 模式 1: 每次运行都弹窗（单次内容）
       $.notify("🔔 声荐单次通知", `当前时间: ${currentHour}点`, currentResult);
   } else if (isLastRun) {
-      // 模式 0: 仅在 22 点进行全天汇总弹窗
       const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 运行次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
       $.notify("📊 声荐每日汇总", "", summaryBody);
   }
