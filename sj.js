@@ -1,1 +1,107 @@
-const a0_0x4d4bc4=a0_0x1953;(function(_0x33f478,_0x3fde72){const _0x586cb0=a0_0x1953,_0x5932f2=_0x33f478();while(!![]){try{const _0x3fe19c=-parseInt(_0x586cb0(0xce))/0x1+-parseInt(_0x586cb0(0xcf))/0x2+-parseInt(_0x586cb0(0xd0))/0x3+-parseInt(_0x586cb0(0xd1))/0x4+-parseInt(_0x586cb0(0xd2))/0x5+-parseInt(_0x586cb0(0xd3))/0x6+parseInt(_0x586cb0(0xd4))/0x7;if(_0x3fe19c===_0x3fde72)break;else _0x5932f2['push'](_0x5932f2['shift']());}catch(_0x4578bb){_0x5932f2['push'](_0x5932f2['shift']());}}}(a0_0x2f75,0x55c5e));const $=new Env(a0_0x4d4bc4(0xd5)),tokenKey=a0_0x4d4bc4(0xd6),statsKey=a0_0x4d4bc4(0xd7);let isScriptFinished=![];const ARGS=((()=>{const _0x4bb504=a0_0x4d4bc4;let _0x1953d2={'notify':'1'};if(typeof $argument!==_0x4bb504(0xd8)&&$argument){let _0x24820f=$argument[_0x4bb504(0xd9)]('&');for(let _0xe2595d of _0x24820f){let [_0x2f758f,_0x88e776]=_0xe2595d[_0x4bb504(0xd9)]('=');if(_0x2f758f)_0x1953d2[_0x2f758f]=_0x88e776;}}return _0x1953d2;})()),rawToken=$[a0_0x4d4bc4(0xdb)](tokenKey),token=rawToken?rawToken[a0_0x4d4bc4(0xdc)](a0_0x4d4bc4(0xdd))?rawToken:a0_0x4d4bc4(0xdd)+rawToken:null,commonHeaders={'Authorization':token,'Content-Type':a0_0x4d4bc4(0xde),'User-Agent':a0_0x4d4bc4(0xdf),'Referer':a0_0x4d4bc4(0xe0)};function getDailyStats(){const _0x2b03c7=a0_0x4d4bc4,_0x1eeaf1=new Date()[_0x2b03c7(0xe1)]()[_0x2b03c7(0xe2)](0x0,0xa);let _0x274d9e={};try{_0x274d9e=JSON[_0x2b03c7(0xe3)]($[_0x2b03c7(0xdb)](statsKey)||'{}');}catch(_0x1c1f61){_0x274d9e={};}return _0x274d9e[_0x2b03c7(0xe4)]!==_0x1eeaf1&&(_0x274d9e={'date':_0x1eeaf1,'logs':[]}),_0x274d9e;}function saveDailyStats(_0x5c2e83){const _0x31feb0=a0_0x4d4bc4;$[_0x31feb0(0xe5)](JSON[_0x31feb0(0xe6)](_0x5c2e83),statsKey);}function signIn(){return new Promise(_0xb5a06a=>{const _0x3729c7=a0_0x1953,_0x21b680={'url':_0x3729c7(0xe7),'headers':commonHeaders,'body':'{}'};$[_0x3729c7(0xe9)](_0x21b680,(_0x10dc78,_0x2732fc,_0x476d44)=>{const _0x4316b5=_0x3729c7;if(_0x10dc78)return _0xb5a06a({'status':_0x4316b5(0xea),'message':_0x4316b5(0xeb)});const _0x312972=_0x2732fc?_0x2732fc[_0x4316b5(0xec)]||_0x2732fc[_0x4316b5(0xed)]:0x0;if(_0x312972===0x191)return _0xb5a06a({'status':_0x4316b5(0xfb),'message':_0x4316b5(0xfd)});try{const _0x1060cd=JSON[_0x4316b5(0xe3)](_0x476d44);if((_0x312972===0xc8||_0x312972===_0x4316b5(0xfe))&&_0x1060cd[_0x4316b5(0x100)]==='ok'){const _0x1dcb01=_0x1060cd[_0x4316b5(0x101)]?.[_0x4316b5(0x103)]||'成功';_0xb5a06a({'status':_0x4316b5(0x104),'message':_0x4316b5(0x105)+_0x1dcb01});}else String(_0x1060cd[_0x4316b5(0x100)]||'')[_0x4316b5(0x106)]('已经')?_0xb5a06a({'status':_0x4316b5(0x108),'message':_0x4316b5(0x109)}):_0xb5a06a({'status':_0x4316b5(0xea),'message':_0x4316b5(0x10b)+(_0x1060cd[_0x4316b5(0x100)]||_0x4316b5(0x10c))});}catch{_0xb5a06a({'status':_0x4316b5(0xea),'message':'🤯\x20签到:\x20解析失败'});}});});}function a0_0x1953(_0x566798,_0x3d1637){const _0x312c3d=a0_0x2f75();return a0_0x1953=function(_0x4a7d9f,_0x5bfeb7){_0x4a7d9f=_0x4a7d9f-0xce;let _0x42ad55=_0x312c3d[_0x4a7d9f];return _0x42ad55;},a0_0x1953(_0x566798,_0x3d1637);}function a0_0x2f75(){const _0x43a860=['声荐签到任务','Token\x20已过期','200','length','msg','data','name','prizeName','success','✅\x20签到:\x20','includes','❌\x20声荐任务失败','info','📋\x20签到:\x20今天签到次数已用完','done','🚫\x20签到:\x20','未知错误','\x20|\x20','⏰\x20领花:\x20超时或未到时间','true','🛑\x20声荐认证失败','🌺\x20已领小红花','test','join','message','⏰\x20领花:\x20未到时间','🌸\x20领花:\x20','静默运行中，当前','未知响应','false','catch','👍\x20领花:\x20已领过','🤔\x20领花:\x20未知响应','setValueForKey','log','---\x20声荐任务开始\x20---','No\x20HTTP','getHours','310219aaaaaa','620438aaaaaa','930657aaaaaa','2734696aaaaaa','3418370aaaaaa','4102044aaaaaa','23331035aacccc','声荐组合任务','shengjian_auth_token','shengjian_daily_stats','undefined','split','点]\x20','read','startsWith','Bearer\x20','application/json','Mozilla/5.0\x20(iPhone;\x20CPU\x20iPhone\x20OS\x2016_2\x20like\x20Mac\x20OS\x20X)\x20AppleWebKit/605.1.15\x20(KHTML,\x20like\x20Gecko)\x20Mobile/15E148\x20MicroMessenger/8.0.64\x20NetType/4G\x20Language/zh_CN','https://servicewechat.com/wxa25139b08fe6e2b6/23/page-frame.html','toISOString','slice','parse','date','write','stringify','https://xcx.myinyun.com:4438/napi/gift','all','put','error','📡\x20签到:\x20网络错误','status','statusCode','push','请重新获取令牌','📊\x20声荐每日汇总通知','今日累计执行\x20','点，非汇总时间(22点)','---\x20任务结束\x20---','valueForKey','post','logs','[通知]\x20','notify','未找到令牌','请先运行小程序获取token','token_error'];a0_0x2f75=function(){return _0x43a860;};return a0_0x2f75();}function claimFlower(){return new Promise(_0x4799f7=>{const _0x312c3d={'url':'https://xcx.myinyun.com:4438/napi/flower/get','headers':commonHeaders,'body':'{}'};$['post'](_0x312c3d,(_0x3d1637,_0x566ac3,_0x3d136c)=>{const _0x5b06ee=a0_0x1953;if(_0x3d1637)return _0x4799f7({'status':'info','message':_0x5b06ee(0x10e)});if(_0x3d136c===_0x5b06ee(0x10f))return _0x4799f7({'status':_0x5b06ee(0x104),'message':_0x5b06ee(0x111)});try{const _0x42aa8a=JSON[_0x5b06ee(0xe3)](_0x3d136c);if(_0x42aa8a[_0x5b06ee(0xed)]===0x191)_0x4799f7({'status':_0x5b06ee(0xfb),'message':_0x5b06ee(0xfd)});else{if(_0x42aa8a[_0x5b06ee(0xed)]===0x190&&/未到领取时间/[_0x5b06ee(0x112)](_0x42aa8a[_0x5b06ee(0x114)]||''))_0x4799f7({'status':_0x5b06ee(0x108),'message':_0x5b06ee(0x115)});else _0x4799f7({'status':_0x5b06ee(0x108),'message':_0x5b06ee(0x116)+(_0x42aa8a[_0x5b06ee(0x114)]||_0x5b06ee(0x118))});}}catch{if(_0x3d136c===_0x5b06ee(0x119))_0x4799f7({'status':_0x5b06ee(0x108),'message':_0x5b06ee(0x11b)});else _0x4799f7({'status':_0x5b06ee(0x108),'message':_0x5b06ee(0x11c)});}});});}(async()=>{const _0x256425=a0_0x4d4bc4;console[_0x256425(0x11e)](_0x256425(0x11f));const _0x35f488=new Date(),_0x4f48b5=_0x35f488[_0x256425(0x121)](),_0x35f753=_0x4f48b5===0x16;if(!token)return $[_0x256425(0xf8)](_0x256425(0x107),_0x256425(0xf9),_0x256425(0xfa)),$[_0x256425(0x10a)]();const [_0x306035,_0x3c4d29]=await Promise[_0x256425(0xe8)]([signIn(),claimFlower()]);let _0x559e8b=getDailyStats();const _0x4a7d9f='['+_0x4f48b5+_0x256425(0xda)+_0x306035[_0x256425(0x114)]+_0x256425(0x10d)+_0x3c4d29[_0x256425(0x114)];_0x559e8b[_0x256425(0xf6)][_0x256425(0xee)](_0x4a7d9f),saveDailyStats(_0x559e8b);if(_0x306035[_0x256425(0xec)]===_0x256425(0xfb)||_0x3c4d29[_0x256425(0xec)]===_0x256425(0xfb))return $[_0x256425(0xf8)](_0x256425(0x110),_0x256425(0xfd),_0x256425(0xef)),$[_0x256425(0x10a)]();if(ARGS[_0x256425(0xf8)]==='1'){const _0x566798=_0x306035[_0x256425(0x114)]+'\x0a'+_0x3c4d29[_0x256425(0x114)];$[_0x256425(0xf8)](_0x256425(0xfc),'',_0x566798);}else{if(_0x35f753){const _0x33c813=_0x559e8b[_0x256425(0xf6)][_0x256425(0x113)]('\x0a');$[_0x256425(0xf8)](_0x256425(0xf0),_0x256425(0xf1)+_0x559e8b[_0x256425(0xf6)][_0x256425(0xff)]+'\x20次',_0x33c813);}else console[_0x256425(0x11e)](_0x256425(0x117)+_0x4f48b5+_0x256425(0xf2));}console[_0x256425(0x11e)](_0x256425(0xf3)),$[_0x256425(0x10a)]();})()[a0_0x4d4bc4(0x11a)](_0x3fb20c=>{const _0x116a5e=a0_0x4d4bc4;console[_0x116a5e(0x11e)](_0x3fb20c),$[_0x116a5e(0x10a)]();});function Env(_0x59036e){const _0xd009f5=a0_0x4d4bc4;this[_0xd009f5(0x102)]=_0x59036e,this[_0xd009f5(0xdb)]=_0x265a6d=>{const _0x1a6ad2=_0xd009f5;if(typeof $persistentStore!==_0x1a6ad2(0xd8))return $persistentStore[_0x1a6ad2(0xdb)](_0x265a6d);if(typeof $prefs!==_0x1a6ad2(0xd8))return $prefs[_0x1a6ad2(0xf4)](_0x265a6d);return null;},this[_0xd009f5(0xe5)]=(_0x29b4fa,_0x2f4c19)=>{const _0x27d8e8=_0xd009f5;if(typeof $persistentStore!==_0x27d8e8(0xd8))return $persistentStore[_0x27d8e8(0xe5)](_0x29b4fa,_0x2f4c19);if(typeof $prefs!==_0x27d8e8(0xd8))return $prefs[_0x27d8e8(0x11d)](_0x29b4fa,_0x2f4c19);return![];},this[_0xd009f5(0xf8)]=(_0x15fab7,_0x42ad55,_0x106398)=>{const _0x3525e6=_0xd009f5;if(typeof $notification!==_0x3525e6(0xd8))$notification[_0x3525e6(0xf5)](_0x15fab7,_0x42ad55,_0x106398);else{if(typeof $notify!==_0x3525e6(0xd8))$notify(_0x15fab7,_0x42ad55,_0x106398);}console[_0x3525e6(0x11e)](_0x3525e6(0xf7)+_0x15fab7+':\x20'+_0x42ad55+'\x0a'+_0x106398);},this[_0xd009f5(0xe9)]=(_0x1dce2b,_0x33f7a3)=>{const _0x32905b=_0xd009f5;if(typeof $httpClient!==_0x32905b(0xd8))$httpClient[_0x32905b(0xe9)](_0x1dce2b,_0x33f7a3);else _0x33f7a3&&_0x33f7a3(_0x32905b(0x120),null,null);},this[_0xd009f5(0xf5)]=(_0x14f499,_0xd3942f)=>{const _0x37bb72=_0xd009f5;if(typeof $httpClient!==_0x37bb72(0xd8))$httpClient[_0x37bb72(0xf5)](_0x14f499,_0xd3942f);else _0xd3942f&&_0xd3942f(_0x37bb72(0x120),null,null);},this[_0xd009f5(0x10a)]=(_0x1aa36a={})=>typeof $done!==_0xd009f5(0xd8)&&$done(_0x1aa36a);}
+const $ = new Env("声荐组合任务");
+
+const ARGS = (() => {
+    let mode = "0"; // 默认汇总模式
+    if (typeof $argument !== "undefined" && $argument) {
+        const argStr = typeof $argument === "string" ? $argument : JSON.stringify($argument);
+        const match = argStr.match(/[01]/);
+        if (match) mode = match[0];
+    }
+    return { notify: mode };
+})();
+
+const tokenKey = "shengjian_auth_token";
+const STATS_KEY = "shengjian_daily_stats";
+const LAST_RUN_HOUR = 22; // 汇总通知时间
+
+const currentHour = new Date().getHours();
+const isLastRun = currentHour === LAST_RUN_HOUR;
+
+const rawToken = $.read(tokenKey);
+const token = rawToken ? (rawToken.startsWith("Bearer ") ? rawToken : `Bearer ${rawToken}`) : null;
+
+const commonHeaders = {
+  "Authorization": token,
+  "Content-Type": "application/json",
+  "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.64 NetType/4G Language/zh_CN",
+  "Referer": "https://servicewechat.com/wxa25139b08fe6e2b6/23/page-frame.html"
+};
+
+(async () => {
+  if (!token) {
+    $.notify("❌ 声荐任务失败", "未找到令牌", "请先打开小程序获取。");
+    return $.done();
+  }
+
+  const [signRes, flowerRes] = await Promise.all([signIn(), claimFlower()]);
+  const currentResult = `${signRes.message} | ${flowerRes.message}`;
+  const logWithTime = `[${currentHour}点] ${currentResult}`;
+ 
+  console.log(logWithTime);
+
+  let dailyStats = getDailyStats();
+  dailyStats.logs.push(logWithTime);
+  saveDailyStats(dailyStats);
+
+  if (ARGS.notify === "1") {
+      // 模式 1: 每次运行都弹窗（单次内容）
+      $.notify("🔔 声荐单次通知", `当前时间: ${currentHour}点`, currentResult);
+  } else if (isLastRun) {
+      // 模式 0: 仅在 22 点进行全天汇总弹窗
+      const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 运行次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
+      $.notify("📊 声荐每日汇总", "", summaryBody);
+  }
+
+  $.done();
+})().catch((e) => { console.log(e); $.done(); });
+
+function getDailyStats() {
+    const today = new Date().toISOString().slice(0, 10);
+    let stats = {};
+    try { stats = JSON.parse($.read(STATS_KEY) || "{}"); } catch (e) { stats = {}; }
+    if (stats.date !== today || !Array.isArray(stats.logs)) {
+        stats = { date: today, logs: [] };
+    }
+    return stats;
+}
+
+function saveDailyStats(stats) {
+    $.write(JSON.stringify(stats), STATS_KEY);
+}
+
+function signIn() {
+  return new Promise((resolve) => {
+    $.put({ url: "https://xcx.myinyun.com:4438/napi/gift", headers: commonHeaders, body: "{}" }, (err, res, data) => {
+      try {
+        const r = JSON.parse(data);
+        if (r.msg === "ok") resolve({ message: `✅ 签到: ${r.data?.prizeName || "成功"}` });
+        else if (String(r.msg).includes("已经")) resolve({ message: '📋 签到: 已用完' });
+        else resolve({ message: `🚫 签到: ${r.msg || "失败"}` });
+      } catch { resolve({ message: '🤯 签到异常' }); }
+    });
+  });
+}
+
+function claimFlower() {
+  return new Promise((resolve) => {
+    $.post({ url: "https://xcx.myinyun.com:4438/napi/flower/get", headers: commonHeaders, body: "{}" }, (err, res, data) => {
+      if (data === "true") resolve({ message: '🌺 已领花' });
+      else if (data === "false") resolve({ message: '👍 已领过' });
+      else resolve({ message: '⏰ 未到时' });
+    });
+  });
+}
+
+function Env(name) {
+  this.name = name;
+  this.read = (k) => (typeof $persistentStore !== "undefined" ? $persistentStore.read(k) : $prefs.valueForKey(k));
+  this.write = (v, k) => (typeof $persistentStore !== "undefined" ? $persistentStore.write(v, k) : $prefs.setValueForKey(v, k));
+  this.notify = (t, s, b) => {
+    if (typeof $notification !== "undefined") $notification.post(t, s, b);
+    else if (typeof $notify !== "undefined") $notify(t, s, b);
+    else console.log(`${t}\n${s}\n${b}`);
+  };
+  this.put = (r, c) => (typeof $httpClient !== "undefined" ? $httpClient.put(r, c) : $http.put(r, c));
+  this.post = (r, c) => (typeof $httpClient !== "undefined" ? $httpClient.post(r, c) : $http.post(r, c));
+  this.done = (v = {}) => (typeof $done !== "undefined" ? $done(v) : null);
+}
