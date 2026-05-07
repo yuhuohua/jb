@@ -1,22 +1,20 @@
 const $ = new Env("声荐组合任务");
 
-// ================= 参数解析 (增强版) =================
+// ================= 参数解析 (专门兼容 Loon 的对象传参) =================
 const ARGS = (() => {
-    let val = "0"; // 默认汇总模式
+    let val = "0"; 
     if (typeof $argument !== "undefined" && $argument) {
-        // 去掉引号和括号
-        let input = String($argument).trim().replace(/[\"\{\}\[\]]/g, "");
-        
-        if (input === "1") {
-            val = "1";
-        } else if (input === "0") {
-            val = "0";
+        // 如果 Loon 传过来的是对象 [object Object]
+        if (typeof $argument === "object") {
+            // 尝试提取 summary_notify 键值，如果拿不到就取对象里的第一个值
+            val = $argument.summary_notify || Object.values($argument)[0] || "0";
         } else {
-            // 如果解析出来还是占位符，说明 Loon 配置没生效
-            console.log(`⚠️ 警告：Loon未正确替换变量，收到原始值为: ${$argument}`);
-            val = "0"; 
+            // 如果是字符串，清理掉多余符号
+            val = String($argument).trim().replace(/[\"\{\}\[\]]/g, "");
         }
     }
+    // 强制转换为字符串 "1" 或 "0"
+    val = String(val) === "1" ? "1" : "0";
     return { notify: val };
 })();
 
@@ -52,15 +50,16 @@ function saveDailyStats(stats) {
     $.write(JSON.stringify(stats), STATS_KEY);
 }
 
-// ================= 模拟业务请求 (保持原样) =================
+// ================= 业务请求 =================
 function signIn() {
   return new Promise((resolve) => {
     $.put({ url: "https://xcx.myinyun.com:4438/napi/gift", headers: commonHeaders, body: "{}" }, (err, res, data) => {
       try {
         const result = JSON.parse(data);
         if (result.msg === "ok") resolve({ message: `✅ 签到: ${result.data?.prizeName || "成功"}` });
-        else resolve({ message: `🚫 签到: ${result.msg || "失败"}` });
-      } catch { resolve({ message: '🤯 签到异常' }); }
+        else if (String(result.msg).includes("已经")) resolve({ message: '📋 签到: 已用完' });
+        else resolve({ message: `🚫 签到: ${result.msg}` });
+      } catch { resolve({ message: '🤯 签到解析失败' }); }
     });
   });
 }
@@ -76,10 +75,13 @@ function claimFlower() {
 
 // ================= 主逻辑 =================
 (async () => {
-  console.log(`[调试] 当前模式参数: ${ARGS.notify} (1为单次, 0为汇总)`);
+  // 调试日志输出，确认参数是否正确解析
+  console.log(`[调试] 收到原始参数类型: ${typeof $argument}`);
+  console.log(`[调试] 收到原始参数内容: ${JSON.stringify($argument)}`);
+  console.log(`[调试] 解析后的通知模式: ${ARGS.notify} (1:单次, 0:汇总)`);
   
   if (!token) {
-    $.notify("❌ 声荐任务失败", "未找到令牌", "");
+    $.notify("❌ 声荐任务失败", "未找到令牌", "请先打开小程序获取。");
     return $.done();
   }
 
@@ -87,31 +89,26 @@ function claimFlower() {
   const currentResult = `${signRes.message} | ${flowerRes.message}`;
   const logWithTime = `[${currentHour}点] ${currentResult}`;
   
-  // 1. 永远记录日志
   let dailyStats = getDailyStats();
   dailyStats.logs.push(logWithTime);
   saveDailyStats(dailyStats);
 
-  // 2. 核心通知逻辑判定
+  // 核心判定逻辑
   if (ARGS.notify === "1") {
-      // 只要设为1，不管是不是22点，都只发单次通知
-      console.log(">>> 执行：单次通知");
-      $.notify("🔔 声荐单次任务", `时间: ${currentHour}点`, currentResult);
-  } 
-  else {
-      // 设为0（或解析失败时），仅在22点发汇总
-      if (isLastRun) {
-          console.log(">>> 执行：全天汇总通知");
-          const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
-          $.notify("📊 声荐每日汇总", "", summaryBody);
-      } else {
-          console.log(">>> 执行：静默模式，仅记录");
-      }
+      // 模式 1: 每次运行都弹窗（单次内容）
+      $.notify("🔔 声荐单次通知", `时间: ${currentHour}点`, currentResult);
+  } else if (isLastRun) {
+      // 模式 0: 仅在汇总时间进行汇总弹窗
+      const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 运行次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
+      $.notify("📊 声荐每日汇总", "", summaryBody);
+  } else {
+      console.log("[通知] 静默模式：仅记录日志，等待22点汇总。");
   }
 
   $.done();
-})().catch(e => { console.log(e); $.done(); });
+})().catch((e) => { console.log(e); $.done(); });
 
+// ================= Env 层 (精简版) =================
 function Env(name) {
   this.name = name;
   this.read = (k) => (typeof $persistentStore !== "undefined" ? $persistentStore.read(k) : $prefs.valueForKey(k));
