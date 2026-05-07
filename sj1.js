@@ -1,128 +1,53 @@
-const $ = new Env("声荐组合任务");
+const $ = new Env("声荐参数调试");
 
-// ================= 参数解析 =================
+// 1. 原始参数捕获
+const rawArgument = (typeof $argument !== "undefined") ? $argument : "未定义(undefined)";
+const typeOfArg = typeof rawArgument;
+
+// 2. 解析逻辑探测
 const ARGS = (() => {
-    let args = { notify: "0" }; 
+    let args = { notify: "未解析成功" }; 
     if (typeof $argument !== "undefined" && $argument) {
-        let input = String($argument).trim().replace(/^\[|\]$/g, "").replace(/^"|"$/g, "");
-        args.notify = input.split(",")[0] || "0";
+        // 尝试不同的解析方式并记录
+        let str = String($argument).trim().replace(/^\[|\]$/g, "").replace(/^"|"$/g, "");
+        args.notify = str.split(",")[0] || "0";
     }
     return args;
 })();
 
-const tokenKey = "shengjian_auth_token";
-const STATS_KEY = "shengjian_daily_stats";
-const LAST_RUN_HOUR = 22; // 汇总时间
-
 const currentHour = new Date().getHours();
+const LAST_RUN_HOUR = 22; // 你的汇总时间
 const isLastRun = currentHour === LAST_RUN_HOUR;
 
-const rawToken = $.read(tokenKey);
-const token = rawToken ? (rawToken.startsWith("Bearer ") ? rawToken : `Bearer ${rawToken}`) : null;
+// 3. 日志打印 (这是核心)
+console.log("============== 调试日志开始 ==============");
+console.log(`[系统原始参数] 内容: ${JSON.stringify(rawArgument)}`);
+console.log(`[系统原始参数] 类型: ${typeOfArg}`);
+console.log(`[解析后的结果] notify值: "${ARGS.notify}" (类型: ${typeof ARGS.notify})`);
+console.log(`[当前系统时间] ${currentHour}点`);
+console.log(`[汇总时间判断] 是否为22点汇总时间: ${isLastRun}`);
+console.log("------------------------------------------");
 
-const commonHeaders = {
-  "Authorization": token,
-  "Content-Type": "application/json",
-  "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.64 NetType/4G Language/zh_CN",
-  "Referer": "https://servicewechat.com/wxa25139b08fe6e2b6/23/page-frame.html"
-};
-
-// ================= 数据持久化 =================
-function getDailyStats() {
-    const today = new Date().toISOString().slice(0, 10);
-    let stats = {};
-    try { stats = JSON.parse($.read(STATS_KEY) || "{}"); } catch (e) { stats = {}; }
-    if (stats.date !== today || !Array.isArray(stats.logs)) {
-        stats = { date: today, logs: [] };
-    }
-    return stats;
+// 4. 模拟逻辑判定
+console.log("[逻辑模拟测试]:");
+if (ARGS.notify === "1") {
+    console.log(">>> 判定结果: 匹配到模式 [1] -> 应该发送【单次通知】");
+} else if (isLastRun) {
+    console.log(">>> 判定结果: 匹配到模式 [0] 且时间符合 -> 应该发送【全天汇总】");
+} else {
+    console.log(">>> 判定结果: 匹配到模式 [0] 且时间不符合 -> 【静默，不发通知】");
 }
 
-function saveDailyStats(stats) {
-    $.write(JSON.stringify(stats), STATS_KEY);
+if (ARGS.notify == 1 && ARGS.notify !== "1") {
+    console.log(">>> 警告: 参数是数字1而不是字符串'1'，可能导致严格匹配失败");
 }
 
-// ================= 业务请求 =================
-function signIn() {
-  return new Promise((resolve) => {
-    $.put({
-      url: "https://xcx.myinyun.com:4438/napi/gift",
-      headers: commonHeaders,
-      body: "{}"
-    }, (err, res, data) => {
-      if (err) return resolve({ message: '📡 签到失败' });
-      try {
-        const result = JSON.parse(data);
-        if (result.msg === "ok") resolve({ message: `✅ 签到: ${result.data?.prizeName || "成功"}` });
-        else if (String(result.msg).includes("已经")) resolve({ message: '📋 签到: 已用完' });
-        else resolve({ message: `🚫 签到: ${result.msg}` });
-      } catch { resolve({ message: '🤯 签到解析失败' }); }
-    });
-  });
-}
+console.log("============== 调试日志结束 ==============");
 
-function claimFlower() {
-  return new Promise((resolve) => {
-    $.post({
-      url: "https://xcx.myinyun.com:4438/napi/flower/get",
-      headers: commonHeaders,
-      body: "{}"
-    }, (err, res, data) => {
-      if (data === "true") return resolve({ message: '🌺 已领花' });
-      if (data === "false") return resolve({ message: '👍 已领过' });
-      try {
-        const obj = JSON.parse(data);
-        resolve({ message: `🌸 领花: ${obj.message || '未知'}` });
-      } catch { resolve({ message: '🤔 领花异常' }); }
-    });
-  });
-}
+$.done();
 
-// ================= 主逻辑 =================
-(async () => {
-  if (!token) {
-    $.notify("❌ 声荐任务失败", "未找到令牌", "请先打开小程序获取。");
-    return $.done();
-  }
-
-  // 1. 执行任务
-  const [signRes, flowerRes] = await Promise.all([signIn(), claimFlower()]);
-  const currentResult = `${signRes.message} | ${flowerRes.message}`;
-  const logWithTime = `[${currentHour}点] ${currentResult}`;
-  
-  console.log(logWithTime);
-
-  // 2. 存入日志
-  let dailyStats = getDailyStats();
-  dailyStats.logs.push(logWithTime);
-  saveDailyStats(dailyStats);
-
-  // 3. 根据参数判断通知方式
-  if (ARGS.notify === "1") {
-      // 模式 1: 每次运行都弹窗（单次内容）
-      $.notify("🔔 声荐单次通知", `时间: ${currentHour}点`, currentResult);
-  } else if (isLastRun) {
-      // 模式 0: 仅在 22 点进行全天汇总弹窗
-      const summaryBody = `📅 日期: ${dailyStats.date}\n🔄 运行次数: ${dailyStats.logs.length}\n───────────\n${dailyStats.logs.join("\n")}`;
-      $.notify("📊 声荐每日汇总", "", summaryBody);
-  } else {
-      // 模式 0 且非 22点，保持静默
-      console.log("[通知] 静默模式：仅记录日志，等待22点汇总。");
-  }
-
-  $.done();
-})().catch((e) => {
-  console.log(e);
-  $.done();
-});
-
-// ================= Env 层 (精简版) =================
+// Env 简易实现
 function Env(name) {
   this.name = name;
-  this.read = (k) => (typeof $persistentStore !== "undefined" ? $persistentStore.read(k) : $prefs.valueForKey(k));
-  this.write = (v, k) => (typeof $persistentStore !== "undefined" ? $persistentStore.write(v, k) : $prefs.setValueForKey(v, k));
-  this.notify = (t, s, b) => (typeof $notification !== "undefined" ? $notification.post(t, s, b) : console.log(`${t}\n${s}\n${b}`));
-  this.put = (r, c) => (typeof $httpClient !== "undefined" ? $httpClient.put(r, c) : $http.put(r, c));
-  this.post = (r, c) => (typeof $httpClient !== "undefined" ? $httpClient.post(r, c) : $http.post(r, c));
   this.done = (v = {}) => typeof $done !== "undefined" && $done(v);
 }
