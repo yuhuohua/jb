@@ -13,6 +13,16 @@ const IPHONE_MODELS = ['iPhone14,3','iPhone13,3','iPhone15,3','iPhone16,1','iPho
 const CFN_VERS = ['1410.0.3','1494.0.7','1568.100.1','1209.1','1474.0.4','1568.200.2'];
 const DARWIN_VERS = ['22.6.0','23.5.0','23.6.0','24.0.0','22.4.0'];
 
+const ARGS = (() => {
+    let mode = "0"; 
+    if (typeof $argument !== "undefined" && $argument) {
+        const argStr = typeof $argument === "string" ? $argument : JSON.stringify($argument);
+        const match = argStr.match(/[01]/);
+        if (match) mode = match[0];
+    }
+    return { notify: mode };
+})();
+
 async function main() {
   if (typeof $request !== 'undefined' && $request) {
     handleCapture();
@@ -25,14 +35,12 @@ function handleCapture() {
   const paramsRaw = parseRawQuery($request.url);
   const headersMap = normalizeHeaderNameMap($request.headers || {});
   let baseUA = headersMap['user-agent'] || headersMap['User-Agent'] || '';
-
   const store = loadStore();
   const fp = fingerprintOf(paramsRaw);
   const now = Date.now();
   const existed = !!store.accounts[fp];
   const uaSeed = existed ? store.accounts[fp].uaSeed : store.order.length;
   const alias = existed ? store.accounts[fp].alias : `账号${store.order.length + 1}`;
-
   store.accounts[fp] = {
     id: fp,
     alias,
@@ -44,7 +52,6 @@ function handleCapture() {
   };
   if (!existed) store.order.push(fp);
   saveStore(store);
-
   const total = store.order.length;
   $.notify(existed ? '🔄 账号参数已更新' : '✅ 新账号已入库', `${alias}（id:${fp}）`, `当前账号总数：${total}`);
   $.done({});
@@ -61,62 +68,43 @@ async function handleTask() {
 
   const total = ids.length;
   const results = [];
-  
   for (let i = 0; i < ids.length; i++) {
-    const id = ids[i];
-    const res = await runAccount(store.accounts[id], i, total);
+    const res = await runAccount(store.accounts[ids[i]], i, total);
     results.push(res);
     if (i < ids.length - 1) await $.wait(ACCOUNT_GAP);
   }
 
   const logKey = 'wetalk_daily_log_v2';
-  let logData = { date: '', summary: [], notified: false }; 
-  const rawLog = $.getdata(logKey);
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
-  const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-  
+  const currentHour = now.getHours();
+  const isLastRun = currentHour === 22;
+
+  let logData = { date: todayStr, summary: [] };
+  const rawLog = $.getdata(logKey);
   if (rawLog) {
     try {
-      logData = JSON.parse(rawLog);
-      if (logData.date !== todayStr) {
-        logData = { date: todayStr, summary: [], notified: false };
-      }
-    } catch (e) {
-      logData = { date: todayStr, summary: [], notified: false };
-    }
-  } else {
-    logData.date = todayStr;
+      const parsed = JSON.parse(rawLog);
+      if (parsed.date === todayStr) logData = parsed;
+    } catch (e) {}
   }
 
-  const currentFullRun = results.join('\n\n');
-  
   const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
-  logData.summary.push(`🕒 ${timeStr}\n${briefRun}`);
-  
-  const currentHour = now.getHours();
-  let notifyMode = '1'; 
-  if (typeof $argument !== 'undefined' && $argument) {
-    notifyMode = String($argument).trim();
+  logData.summary.push(`🕒 ${currentHour}:${String(now.getMinutes()).padStart(2, '0')}\n${briefRun}`);
+  $.setdata(JSON.stringify(logData), logKey);
+
+  let modeTag = "";
+  if (ARGS.notify === "1") {
+    modeTag = "【单次通知模式】";
+    $.notify(`🔔 WeTalk 单次通知 (${total}账号)`, "", results.join('\n\n'));
+  } else if (isLastRun) {
+    modeTag = "【汇总通知模式】";
+    $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'));
+  } else {
+    modeTag = "【静默运行模式】";
   }
 
-  if (notifyMode === '0') {
-    $.notify(`🎉 WeTalk 当前结果 (${total}个账号)`, "", currentFullRun);
-  } else {
-    if (currentHour === 22 && !logData.notified) {
-      $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'));
-      logData.notified = true;
-    } else {
-      console.log(`【本次执行详情】\n${currentFullRun}`);
-      if (currentHour === 22) {
-        console.log(`【22点已发送过总汇，不再重复通知】`);
-      } else {
-        console.log(`【已记录变动，待22点汇总通知】`);
-      }
-    }
-  }
-  
-  $.setdata(JSON.stringify(logData), logKey);
+  console.log(`${modeTag} 完成 ${total} 个账号的任务`);
   $.done();
 }
 
@@ -142,59 +130,25 @@ async function runAccount(acc, index, total) {
   const ua = buildUA(acc.baseUA, acc.uaSeed);
   const headers = buildHeaders(acc.capture, ua);
   const msgs = [];
-
-  const fetchApi = (path) => {
-    return $.get({ url: buildUrl(path, acc.capture), headers });
-  };
-
+  const fetchApi = (path) => $.get({ url: buildUrl(path, acc.capture), headers });
   try {
     let res = await fetchApi('queryBalanceAndBonus');
     let d = JSON.parse(res.body);
-    let oldBalance = '?';
-    if (d.retcode === 0) {
-        oldBalance = d.result.balance;
-    } else {
-        msgs.push(`⚠️ 查询异常：${d.retmsg}`);
-    }
-
-    res = await fetchApi('checkIn');
-    d = JSON.parse(res.body);
-    if (d.retcode === 0) {
-        msgs.push(`✅签到成功`);
-    } else {
-        let msg = d.retmsg || '失败';
-        msgs.push(`⚠️签到：${msg}`);
-    }
-
-    let videoCount = 0;
-    let videoEarn = 0;
-    let videoFailMsg = '';
-    
+    let oldBalance = d.retcode === 0 ? d.result.balance : '?';
+    await fetchApi('checkIn');
+    let vCount = 0, vEarn = 0;
     for (let i = 1; i <= MAX_VIDEO; i++) {
       await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
       res = await fetchApi('videoBonus');
       d = JSON.parse(res.body);
-      if (d.retcode === 0) {
-        videoCount++;
-        videoEarn += parseFloat(d.result?.bonus || 0);
-      } else {
-        videoFailMsg = d.retmsg;
-        break; 
-      }
+      if (d.retcode === 0) { vCount++; vEarn += parseFloat(d.result?.bonus || 0); }
+      else break;
     }
-
-    if (videoCount > 0) msgs.push(`🎬+${videoEarn.toFixed(3)}(${videoCount}次)`);
-    if (videoFailMsg) msgs.push(`⏸视频中断`);
-
+    if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount}次)`);
     res = await fetchApi('queryBalanceAndBonus');
     d = JSON.parse(res.body);
-    let newBalance = '?';
-    if (d.retcode === 0) {
-        newBalance = d.result.balance;
-    }
-    
+    let newBalance = d.retcode === 0 ? d.result.balance : '?';
     msgs.unshift(`${tag} 💰${oldBalance}➔${newBalance}`);
-
   } catch (err) {
     msgs.push(`❌异常`);
   }
@@ -220,20 +174,10 @@ function MD5(string) {
   function II(a, b, c, d, x, s, ac) { a = AddUnsigned(a, AddUnsigned(AddUnsigned(I(b, c, d), x), ac)); return AddUnsigned(RotateLeft(a, s), b); }
   function ConvertToWordArray(str) {
     const lMessageLength = str.length;
-    const lNumberOfWords_temp1 = lMessageLength + 8;
-    const lNumberOfWords_temp2 = (lNumberOfWords_temp1 - (lNumberOfWords_temp1 % 64)) / 64;
-    const lNumberOfWords = (lNumberOfWords_temp2 + 1) * 16;
-    const lWordArray = Array(lNumberOfWords - 1).fill(0);
-    let lBytePosition = 0, lByteCount = 0;
-    while (lByteCount < lMessageLength) {
-      const lWordCount = (lByteCount - (lByteCount % 4)) / 4;
-      lBytePosition = (lByteCount % 4) * 8;
-      lWordArray[lWordCount] |= str.charCodeAt(lByteCount) << lBytePosition;
-      lByteCount++;
-    }
-    const lWordCount = (lByteCount - (lByteCount % 4)) / 4;
-    lBytePosition = (lByteCount % 4) * 8;
-    lWordArray[lWordCount] |= 0x80 << lBytePosition;
+    const lNumberOfWords = (((lMessageLength + 8) - ((lMessageLength + 8) % 64)) / 64 + 1) * 16;
+    const lWordArray = Array(lNumberOfWords).fill(0);
+    for (let i = 0; i < lMessageLength; i++) lWordArray[i >> 2] |= str.charCodeAt(i) << ((i % 4) * 8);
+    lWordArray[lMessageLength >> 2] |= 0x80 << ((lMessageLength % 4) * 8);
     lWordArray[lNumberOfWords - 2] = lMessageLength << 3;
     lWordArray[lNumberOfWords - 1] = lMessageLength >>> 29;
     return lWordArray;
@@ -242,17 +186,15 @@ function MD5(string) {
     let WordToHexValue = '';
     for (let lCount = 0; lCount <= 3; lCount++) {
       const lByte = (lValue >>> (lCount * 8)) & 255;
-      const WordToHexValue_temp = '0' + lByte.toString(16);
-      WordToHexValue += WordToHexValue_temp.substr(WordToHexValue_temp.length - 2, 2);
+      WordToHexValue += ('0' + lByte.toString(16)).substr(-2);
     }
     return WordToHexValue;
   }
   const x = ConvertToWordArray(string);
   let a = 0x67452301, b = 0xEFCDAB89, c = 0x98BADCFE, d = 0x10325476;
-  const S11 = 7, S12 = 12, S13 = 17, S14 = 22, S21 = 5, S22 = 9, S23 = 14, S24 = 20;
-  const S31 = 4, S32 = 11, S33 = 16, S34 = 23, S41 = 6, S42 = 10, S43 = 15, S44 = 21;
+  const S11 = 7, S12 = 12, S13 = 17, S14 = 22, S21 = 5, S22 = 9, S23 = 14, S24 = 20, S31 = 4, S32 = 11, S33 = 16, S34 = 23, S41 = 6, S42 = 10, S43 = 15, S44 = 21;
   for (let k = 0; k < x.length; k += 16) {
-    const AA = a, BB = b, CC = c, DD = d;
+    let AA = a, BB = b, CC = c, DD = d;
     a = FF(a,b,c,d,x[k+0],S11,0xD76AA478); d = FF(d,a,b,c,x[k+1],S12,0xE8C7B756); c = FF(c,d,a,b,x[k+2],S13,0x242070DB); b = FF(b,c,d,a,x[k+3],S14,0xC1BDCEEE);
     a = FF(a,b,c,d,x[k+4],S11,0xF57C0FAF); d = FF(d,a,b,c,x[k+5],S12,0x4787C62A); c = FF(c,d,a,b,x[k+6],S13,0xA8304613); b = FF(b,c,d,a,x[k+7],S14,0xFD469501);
     a = FF(a,b,c,d,x[k+8],S11,0x698098D8); d = FF(d,a,b,c,x[k+9],S12,0x8B44F7AF); c = FF(c,d,a,b,x[k+10],S13,0xFFFF5BB1); b = FF(b,c,d,a,x[k+11],S14,0x895CD7BE);
@@ -293,9 +235,7 @@ function parseRawQuery(url) {
     if (!pair) return;
     const idx = pair.indexOf('=');
     if (idx < 0) return;
-    const k = pair.slice(0, idx);
-    const v = pair.slice(idx + 1);
-    rawMap[k] = v;
+    rawMap[pair.slice(0, idx)] = pair.slice(idx + 1);
   });
   return rawMap;
 }
@@ -306,34 +246,23 @@ function fingerprintOf(paramsRaw) {
   return MD5(base).slice(0, 12);
 }
 
-function pickItem(arr, seed) {
-  return arr[seed % arr.length];
-}
-
 function buildUA(baseUA, seed) {
-  const iosVer = pickItem(IOS_VERSIONS, seed);
-  const scale = pickItem(IOS_SCALES, seed + 1);
-  const model = pickItem(IPHONE_MODELS, seed + 2);
-  const cfn = pickItem(CFN_VERS, seed + 3);
-  const darwin = pickItem(DARWIN_VERS, seed + 4);
+  const iosVer = IOS_VERSIONS[seed % IOS_VERSIONS.length];
+  const scale = IOS_SCALES[(seed+1) % IOS_SCALES.length];
+  const model = IPHONE_MODELS[(seed+2) % IPHONE_MODELS.length];
+  const cfn = CFN_VERS[(seed+3) % CFN_VERS.length];
+  const darwin = DARWIN_VERS[(seed+4) % DARWIN_VERS.length];
   if (baseUA && typeof baseUA === 'string') {
     let ua = baseUA;
-    let changed = false;
-    if (/iOS \d+(\.\d+){0,2}/.test(ua)) { ua = ua.replace(/iOS \d+(\.\d+){0,2}/, `iOS ${iosVer}`); changed = true; }
-    if (/Scale\/\d+(\.\d+)?/.test(ua)) { ua = ua.replace(/Scale\/\d+(\.\d+)?/, `Scale/${scale}`); changed = true; }
-    if (/iPhone\d+,\d+/.test(ua)) { ua = ua.replace(/iPhone\d+,\d+/, model); changed = true; }
-    if (/CFNetwork\/[\d.]+/.test(ua)) { ua = ua.replace(/CFNetwork\/[\d.]+/, `CFNetwork/${cfn}`); changed = true; }
-    if (/Darwin\/[\d.]+/.test(ua)) { ua = ua.replace(/Darwin\/[\d.]+/, `Darwin/${darwin}`); changed = true; }
-    if (changed) return ua;
+    ua = ua.replace(/iOS \d+(\.\d+){0,2}/, `iOS ${iosVer}`).replace(/Scale\/\d+(\.\d+)?/, `Scale/${scale}`).replace(/iPhone\d+,\d+/, model).replace(/CFNetwork\/[\d.]+/, `CFNetwork/${cfn}`).replace(/Darwin\/[\d.]+/, `Darwin/${darwin}`);
+    return ua;
   }
   return `WeTalk/30.6.0 (com.innovationworks.wetalk; build:28; iOS ${iosVer}) Alamofire/5.4.3`;
 }
 
 function buildSignedParamsRaw(capture) {
   const params = {};
-  Object.keys(capture.paramsRaw || {}).forEach(k => {
-    if (k !== 'sign' && k !== 'signDate') params[k] = capture.paramsRaw[k];
-  });
+  Object.keys(capture.paramsRaw || {}).forEach(k => { if (k !== 'sign' && k !== 'signDate') params[k] = capture.paramsRaw[k]; });
   params.signDate = getUTCSignDate();
   const signBase = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
   params.sign = MD5(signBase + SECRET);
@@ -349,8 +278,7 @@ function buildUrl(path, capture) {
 function buildHeaders(capture, ua) {
   const headers = {};
   Object.keys(capture.headers || {}).forEach(k => headers[k] = capture.headers[k]);
-  const drop = ['content-length', ':authority', ':method', ':path', ':scheme', 'user-agent'];
-  Object.keys(headers).forEach(k => { if (drop.includes(k.toLowerCase())) delete headers[k]; });
+  ['content-length', ':authority', ':method', ':path', ':scheme', 'user-agent'].forEach(k => delete headers[k]);
   headers['Host'] = API_HOST;
   headers['Accept'] = headers['accept'] || 'application/json';
   headers['User-Agent'] = ua;
@@ -358,32 +286,20 @@ function buildHeaders(capture, ua) {
 }
 
 function Env(name) {
-  const isSurge = typeof $httpClient !== 'undefined' && typeof $utils !== 'undefined';
-  const isLoon = typeof $loon !== 'undefined';
+  const isSurge = typeof $httpClient !== 'undefined';
   const isQX = typeof $task !== 'undefined';
-
-  this.getdata = (key) => {
-    if (isQX) return $prefs.valueForKey(key);
-    return $persistentStore.read(key);
+  this.getdata = (k) => isQX ? $prefs.valueForKey(k) : $persistentStore.read(k);
+  this.setdata = (v, k) => isQX ? $prefs.setValueForKey(v, k) : $persistentStore.write(v, k);
+  this.notify = (t, s, m) => {
+    if (isQX) $notify(t, s, m);
+    else if (typeof $notification !== 'undefined') $notification.post(t, s, m);
   };
-  this.setdata = (val, key) => {
-    if (isQX) return $prefs.setValueForKey(val, key);
-    return $persistentStore.write(val, key);
-  };
-  this.notify = (title, subTitle, message) => {
-    if (isQX) $notify(title, subTitle, message);
-    else if (isSurge || isLoon) $notification.post(title, subTitle, message);
-  };
-  this.get = (options) => {
-    if (isQX) return $task.fetch(options);
-    return new Promise((resolve, reject) => {
-      $httpClient.get(options, (err, resp, body) => {
-        if (err) reject(err); else resolve({ ...resp, body });
-      });
-    });
+  this.get = (o) => {
+    if (isQX) return $task.fetch(o);
+    return new Promise((resolve, reject) => { $httpClient.get(o, (err, resp, body) => err ? reject(err) : resolve({ ...resp, body })); });
   };
   this.wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  this.done = (obj = {}) => { if (typeof $done !== 'undefined') $done(obj); };
+  this.done = (o = {}) => { if (typeof $done !== 'undefined') $done(o); };
 }
 
 main();
