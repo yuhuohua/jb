@@ -1,5 +1,4 @@
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1";
-// ✅ 修正关键：使用当前有效域名（根据你的日志确认为 69yun69.com）
 const loginUrl = "https://69yun69.com/auth/login";
 const checkinUrl = "https://69yun69.com/user/checkin";
 
@@ -62,13 +61,8 @@ async function main() {
             const checkinRes = await performCheckin(loginRes.cookie);
             handleResult(checkinRes, acc.email);
         } catch (err) {
-            // ✅ 增强错误处理：明确区分网络错误和业务错误
-            const errorMsg = err.message.includes("Socket closed") 
-                ? "网络连接被中断（请检查TLS配置或节点）" 
-                : err.message;
-                
-            console.log(`❌ [${maskEmail(acc.email)}] 失败: ${errorMsg}`);
-            if (!isSilent) $notification.post("69云签到失败 ❌", maskEmail(acc.email), errorMsg);
+            console.log(`❌ 失败: ${err.message}`);
+            if (!isSilent) $notification.post("69云签到失败 ❌", maskedEmail, err.message);
         }
         
         if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 2000));
@@ -78,11 +72,10 @@ async function main() {
     $done();
 }
 
-// ✅ 关键修复：强制指定TLS版本 + 增强错误诊断
 function performLogin(email, password) {
     const body = `email=${encodeURIComponent(email)}&passwd=${encodeURIComponent(password)}&code=`;
     return new Promise((resolve, reject) => {
-        const opts = {
+        $httpClient.post({
             url: loginUrl,
             header: {
                 "User-Agent": userAgent,
@@ -93,51 +86,25 @@ function performLogin(email, password) {
                 "Accept": "application/json, text/javascript, */*; q=0.01",
                 "Accept-Language": "zh-CN,zh-Hans;q=0.9"
             },
-            body: body,
-            // 🔥 Loon 专属修复：强制启用 TLS 1.2 和 1.3
-            tls12: true,
-            tls13: true,
-            // 可选：如果仍失败，取消下行注释（仅测试用，存在安全风险）
-            // rejectUnauthorized: false 
-        };
-
-        $httpClient.post(opts, (error, response, data) => {
-            if (error) {
-                // 详细诊断网络错误类型
-                let errMsg = error;
-                if (error.message.includes("LNGCDAsyncSocketErrorDomain Code=7")) {
-                    errMsg = "Socket closed by remote peer (TLS版本不匹配)";
-                } else if (error.message.includes("Request timeout")) {
-                    errMsg = "网络请求超时（检查代理节点）";
-                }
-                return reject(new Error(errMsg));
-            }
-            
-            if (!response || response.status !== 200) {
-                return reject(new Error(`HTTP状态码异常: ${response?.status || '无响应'}`));
-            }
-            
+            body: body
+        }, (error, response, data) => {
+            if (error) return reject(new Error(error));
+            if (response.status !== 200) return reject(new Error(`状态码: ${response.status}`));
             try {
                 const res = JSON.parse(data);
                 if (res.ret !== 1) return reject(new Error(res.msg || "登录失败"));
-                
-                // 从响应头安全提取Cookie
-                const setCookie = response.headers['Set-Cookie'] || response.headers['set-cookie'] || '';
-                const cookie = setCookie.split(';')[0] || ''; // 只取主Cookie
-                if (!cookie) return reject(new Error("Cookie获取失败"));
-                
+                const cookie = response.headers['Set-Cookie'] || response.headers['set-cookie'] || '';
                 resolve({ cookie, data: res });
             } catch (e) {
-                reject(new Error(`登录响应解析失败: ${e.message}`));
+                reject(new Error("登录响应解析失败"));
             }
         });
     });
 }
 
-// ✅ 关键修复：保持TLS配置一致性
 function performCheckin(cookie) {
     return new Promise((resolve, reject) => {
-        const opts = {
+        $httpClient.post({
             url: checkinUrl,
             header: {
                 "User-Agent": userAgent,
@@ -146,18 +113,13 @@ function performCheckin(cookie) {
                 "X-Requested-With": "XMLHttpRequest",
                 "Cookie": cookie,
                 "Content-Length": "0"
-            },
-            // 🔥 Loon 专属修复：必须与登录请求保持相同的TLS配置
-            tls12: true,
-            tls13: true
-        };
-
-        $httpClient.post(opts, (error, response, data) => {
-            if (error) return reject(new Error(`签到请求失败: ${error.message}`));
+            }
+        }, (error, response, data) => {
+            if (error) return reject(new Error(error));
             try {
                 resolve(JSON.parse(data));
             } catch (e) {
-                reject(new Error(`签到响应解析失败: ${e.message}`));
+                reject(new Error("签到响应解析失败"));
             }
         });
     });
@@ -171,11 +133,11 @@ function handleResult(result, email) {
         return;
     }
     if (result.ret === 1) {
-        console.log(`✅ [${masked}] 签到成功 | 流量: ${result.traffic || '已更新'}`);
-        if (!isSilent) $notification.post("🎉 69云签到成功", masked, `流量: ${result.traffic}\n${result.msg}`);
+        console.log(`✅ [${masked}] 签到成功`);
+        if (!isSilent) $notification.post("🎉 69云签到成功", masked, `流量: ${result.traffic || '已更新'}\n${result.msg}`);
         return;
     }
-    throw new Error(result.msg || "未知业务错误");
+    throw new Error(result.msg || "未知错误");
 }
 
 function maskEmail(email) {
