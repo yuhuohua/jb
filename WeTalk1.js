@@ -77,6 +77,7 @@ async function handleTask() {
   const logKey = 'wetalk_daily_log_v2';
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+  const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
   const currentHour = now.getHours();
   const isLastRun = currentHour === 22;
 
@@ -89,14 +90,15 @@ async function handleTask() {
     } catch (e) {}
   }
 
+  const currentResult = results.join('\n\n');
   const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
-  logData.summary.push(`🕒 ${currentHour}:${String(now.getMinutes()).padStart(2, '0')}\n${briefRun}`);
+  logData.summary.push(`🕒 ${timeStr}\n${briefRun}`);
   $.setdata(JSON.stringify(logData), logKey);
 
   let modeTag = "";
   if (ARGS.notify === "1") {
     modeTag = "【单次通知模式】";
-    $.notify(`🔔 WeTalk 单次通知 (${total}账号)`, "", results.join('\n\n'));
+    $.notify(`🔔 WeTalk 单次通知 (${total}账号)`, "", currentResult);
   } else if (isLastRun) {
     modeTag = "【汇总通知模式】";
     $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'));
@@ -104,7 +106,7 @@ async function handleTask() {
     modeTag = "【静默运行模式】";
   }
 
-  console.log(`${modeTag} 完成 ${total} 个账号的任务`);
+  console.log(`${modeTag} ${timeStr} 完成任务\n${currentResult}`);
   $.done();
 }
 
@@ -131,24 +133,38 @@ async function runAccount(acc, index, total) {
   const headers = buildHeaders(acc.capture, ua);
   const msgs = [];
   const fetchApi = (path) => $.get({ url: buildUrl(path, acc.capture), headers });
+
   try {
     let res = await fetchApi('queryBalanceAndBonus');
     let d = JSON.parse(res.body);
     let oldBalance = d.retcode === 0 ? d.result.balance : '?';
-    await fetchApi('checkIn');
-    let vCount = 0, vEarn = 0;
+
+    res = await fetchApi('checkIn');
+    d = JSON.parse(res.body);
+    if (d.retcode === 0) msgs.push(`✅签到成功`);
+    else msgs.push(`⚠️签到：${d.retmsg || '失败'}`);
+
+    let vCount = 0, vEarn = 0, vFail = '';
     for (let i = 1; i <= MAX_VIDEO; i++) {
       await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
       res = await fetchApi('videoBonus');
       d = JSON.parse(res.body);
-      if (d.retcode === 0) { vCount++; vEarn += parseFloat(d.result?.bonus || 0); }
-      else break;
+      if (d.retcode === 0) {
+        vCount++;
+        vEarn += parseFloat(d.result?.bonus || 0);
+      } else {
+        vFail = d.retmsg;
+        break;
+      }
     }
     if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount}次)`);
+    if (vFail) msgs.push(`⏸视频中断`);
+
     res = await fetchApi('queryBalanceAndBonus');
     d = JSON.parse(res.body);
     let newBalance = d.retcode === 0 ? d.result.balance : '?';
     msgs.unshift(`${tag} 💰${oldBalance}➔${newBalance}`);
+
   } catch (err) {
     msgs.push(`❌异常`);
   }
