@@ -21,25 +21,30 @@ const $ = new Env("🏥 众安健康");
   }
 
   if (tokens.length === 0) {
+    console.log("❌ 未检测到有效的 Token，请检查配置参数");
     $.msg($.name, "❌ 配置错误", "请先在配置中填入至少一个 Token");
     $.done();
     return;
   }
 
+  console.log(`🏥 ${$.name} 开始运行\n💡 弹窗门槛：${threshold} 元\n👤 账号总数：${tokens.length}`);
+
   for (let i = 0; i < tokens.length; i++) {
     const accountIdx = i + 1;
+    console.log(`\n------ 账号 [${accountIdx}] 开始处理 ------`);
     try {
       await runTask(tokens[i], accountIdx, threshold);
     } catch (e) {
-      console.log(`❌ [账号 ${accountIdx}] 运行异常: ${e.message || e}`);
+      console.log(`❌ [账号 ${accountIdx}] 异常: ${e.message || e}`);
     }
     
     if (i < tokens.length - 1) {
-      const waitTime = Math.floor(Math.random() * 3000) + 2000;
+      const waitTime = Math.floor(Math.random() * 2000) + 1000;
       await $.wait(waitTime);
     }
   }
 
+  console.log(`\n------ 所有任务已完成 ------`);
   $.done();
 })();
 
@@ -51,30 +56,26 @@ function runTask(token, idx, threshold) {
     };
 
     $.get({ url, headers, timeout: 15000 }, (err, resp, data) => {
-      let notifyMsg = "";
       if (err) {
-        notifyMsg = `📡 网络请求失败`;
+        console.log(`❌ [账号 ${idx}] 网络请求失败`);
       } else if (data) {
-        const lines = data.split('\n');
-        let start = -1, end = -1;
-        for (let i = 0; i < lines.length; i++) if (lines[i].includes("📝 任务处理结果")) start = i;
-        for (let i = lines.length - 1; i >= 0; i--) if (lines[i].includes("💰 累计活动奖金")) { end = i; break; }
+        console.log(`✅ [账号 ${idx}] 数据获取成功`);
         
-        if (start !== -1 && end !== -1) {
-          notifyMsg = lines.slice(start, end + 1).join('\n');
+        let amount = 0;
+        const amountMatch = data.match(/(?:金额|奖金)[:：]\s*([\d.]+)/);
+        if (amountMatch) amount = parseFloat(amountMatch[1]);
+
+        console.log(`💰 当前金额：${amount} 元`);
+
+        if (amount >= threshold) {
+          console.log(`🎉 金额达标，准备弹窗通知`);
+          $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达到设定门槛(${threshold}元)！`);
         } else {
-          notifyMsg = lines.filter(line => /📝|✅|🎁|💰|---/.test(line)).join('\n') || data.substring(0, 100);
+          console.log(`ℹ️ 未达到门槛 ${threshold} 元，不弹窗`);
         }
+      } else {
+        console.log(`⚠️ [账号 ${idx}] 接口返回为空`);
       }
-
-      let amount = 0;
-      const amountMatch = notifyMsg.match(/(?:金额|奖金)[:：]\s*([\d.]+)/);
-      if (amountMatch) amount = parseFloat(amountMatch[1]);
-
-      if (amount >= threshold) {
-        $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达到设定门槛(${threshold}元)！\n${notifyMsg}`);
-      }
-      
       resolve();
     });
   });
