@@ -5,38 +5,32 @@ const $ = new Env("🏥 众安健康");
   let threshold = 5;
   const arg = typeof $argument !== 'undefined' ? $argument : "";
 
-  console.log(`[DEBUG] $argument 类型: ${typeof arg}`);
-  console.log(`[DEBUG] $argument 内容: ${JSON.stringify(arg)}`);
-
   if (arg) {
     let rawArr = [];
-    if (typeof arg === 'string') {
-      rawArr = arg.replace(/[\[\]]/g, "").split(/[#,]/).map(v => v.trim());
-    } else if (typeof arg === 'object') {
-      rawArr = Array.isArray(arg) ? arg : Object.values(arg);
+    if (typeof arg === 'object' && !Array.isArray(arg)) {
+      if (arg.THRESHOLD) threshold = parseFloat(arg.THRESHOLD);
+      for (let key in arg) {
+        if (key.toUpperCase().includes("TOKEN") && arg[key]) rawArr.push(arg[key]);
+      }
+    } else {
+      rawArr = (typeof arg === 'string' ? arg.replace(/[\[\]]/g, "").split(/[#,]/) : arg)
+        .map(v => String(v).trim())
+        .filter(v => v !== "" && v !== "null" && v !== "undefined");
+      
+      if (rawArr.length > 0 && !isNaN(rawArr[0])) {
+        threshold = parseFloat(rawArr.shift());
+      }
     }
-    
-    console.log(`[DEBUG] 解析后的 rawArr: ${JSON.stringify(rawArr)}`);
-
-    if (rawArr.length > 0 && !isNaN(rawArr[0]) && rawArr[0] !== "" && rawArr[0] !== null) {
-      threshold = parseFloat(rawArr.shift());
-      console.log(`[DEBUG] 确定提现门槛: ${threshold}`);
-    }
-    
-    tokens = rawArr.map(v => String(v).replace(/['" ]/g, ""))
-                   .filter(t => t !== "" && t !== "null" && t !== "undefined" && t !== "undefined");
+    tokens = rawArr.filter(t => t !== "" && t !== "null");
   }
 
-  console.log(`[DEBUG] 最终提取的 Tokens: ${JSON.stringify(tokens)}`);
-
   if (tokens.length === 0) {
-    console.log("❌ 未检测到 Token，请检查配置");
     $.msg($.name, "❌ 配置错误", "请先在配置中填入 Token");
     $.done();
     return;
   }
 
-  console.log(`🏥 ${$.name} 运行中 | 门槛: ${threshold}元 | 账号数: ${tokens.length}`);
+  console.log(`🏥 ${$.name} | 门槛: ${threshold}元 | 账号数: ${tokens.length}`);
 
   for (let i = 0; i < tokens.length; i++) {
     const accountIdx = i + 1;
@@ -80,7 +74,7 @@ function runTask(token, idx, threshold) {
       if (amount >= threshold) {
         $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达标啦！\n${notifyMsg}`);
       } else {
-        console.log(`[账号 ${idx}] 金额 ${amount} 未达到门槛 ${threshold}，不弹窗`);
+        console.log(`[账号 ${idx}] 当前金额 ${amount} 未达到门槛 ${threshold}，不弹窗`);
       }
       resolve();
     });
