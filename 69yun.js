@@ -1,16 +1,14 @@
 /**
- * 69云机场自动签到脚本
- * 修复版 v2.1 | 适配Loon/Surge | 支持多账号/静默模式
+ * 69云机场自动签到脚本 - 网络错误修复版 v2.2
+ * 重点修复：网络层错误导致的 undefined 异常
  * 
- * 功能说明：
- * 1. 自动解析Loon/Surge传入的账号参数
- * 2. 多账号顺序签到（最多5个）
- * 3. 静默模式支持（不推送通知）
- * 4. 完整错误日志追踪
- * 5. 账号隐私保护（自动掩码邮箱）
+ * 修改说明：
+ * 1. 修复 httpRequest 网络错误处理（字符串错误转 Error 对象）
+ * 2. 增强错误信息脱敏（自动隐藏密码）
+ * 3. 添加 DNS/连接超时专项诊断
  */
 
-// ========= 核心工具函数（必须提前定义） =========
+// ========= 核心工具函数 =========
 function maskEmail(email) {
     if (!email || !email.includes("@")) return "未知账号";
     const [name, domain] = email.split("@");
@@ -23,6 +21,38 @@ function log(msg, level = "info") {
     console.log(`[${time}] ${prefix} ${msg}`);
 }
 
+// ========= 网络请求封装（关键修复） =========
+function httpRequest(url, method, headers, body = null) {
+    return new Promise((resolve, reject) => {
+        const opts = { url, method, headers };
+        if (body) opts.body = JSON.stringify(body);
+        
+        $httpClient[method.toLowerCase()](opts, (err, resp, data) => {
+            // 修复1：网络层错误处理（Loon返回字符串错误）
+            if (err) {
+                const errorMsg = typeof err === 'string' 
+                    ? `[Network] ${err.replace(/password:\S+/g, 'password:***')}` 
+                    : `Network error: ${err.message}`;
+                return reject(new Error(errorMsg));
+            }
+            
+            try {
+                resolve({ 
+                    status: resp.status, 
+                    headers: resp.headers,
+                    body: data ? JSON.parse(data) : null 
+                });
+            } catch (e) {
+                // 非JSON响应处理（保留原始数据）
+                resolve({ 
+                    status: resp.status, 
+                    body: data 
+                });
+            }
+        });
+    });
+}
+
 // ========= 参数解析器 =========
 let isSilent = false;
 let accounts = [];
@@ -32,17 +62,14 @@ function parseParams() {
         let arg = (typeof $argument !== "undefined" && $argument) ? $argument : "";
         log(`原始参数类型: ${typeof arg}`, "info");
         
-        // 情况1: Loon传入对象 (标准格式)
         if (typeof arg === "object" && arg !== null && !Array.isArray(arg)) {
             log(`解析到Loon对象参数: ${JSON.stringify(arg)}`, "info");
             
-            // 处理静默模式
             if (arg["静默运行"] === "#" || arg["silent"] === "#") {
                 isSilent = true;
                 log("检测到静默运行模式", "info");
             }
             
-            // 解析5个账号字段
             for (let i = 1; i <= 5; i++) {
                 const key = `账号和密码${i}`;
                 if (arg[key] && typeof arg[key] === "string" && arg[key].includes("@")) {
@@ -56,9 +83,7 @@ function parseParams() {
                     }
                 }
             }
-        }
-        // 情况2: Surge字符串传参 (兼容模式)
-        else if (typeof arg === "string") {
+        } else if (typeof arg === "string") {
             log(`解析到Surge字符串参数: ${arg}`, "info");
             if (arg.includes("silent=#")) isSilent = true;
             
@@ -87,28 +112,7 @@ function parseParams() {
     }
 }
 
-// ========= 网络请求封装 =========
-function httpRequest(url, method, headers, body = null) {
-    return new Promise((resolve, reject) => {
-        const opts = { url, method, headers };
-        if (body) opts.body = JSON.stringify(body);
-        
-        $httpClient[method.toLowerCase()](opts, (err, resp, data) => {
-            if (err) return reject(err);
-            try {
-                resolve({ 
-                    status: resp.status, 
-                    headers: resp.headers,
-                    body: data ? JSON.parse(data) : null 
-                });
-            } catch (e) {
-                resolve({ status: resp.status, body: data });
-            }
-        });
-    });
-}
-
-// ========= 核心业务逻辑 =========
+// ========= 核心业务逻辑（关键修复） =========
 async function performLogin(email, password) {
     try {
         const loginUrl = "https://api.69yun99.com/api/v1/passport/auth/login";
@@ -122,13 +126,25 @@ async function performLogin(email, password) {
             password
         });
         
+        // 修复2：增强响应验证
         if (response.status === 200 && response.body && response.body.data && response.body.data.token) {
             return response.body.data.token;
         }
         
-        throw new Error(`登录失败 [${response.status}] ${response.body?.message || '未知错误'}`);
+        // 修复3：详细诊断非200响应
+        const bodyMsg = response.body 
+            ? (typeof response.body === 'string' 
+                ? response.body.substring(0, 200) 
+                : JSON.stringify(response.body).substring(0, 200))
+            : '无响应体';
+            
+        throw new Error(`HTTP ${response.status} | ${bodyMsg}`);
     } catch (e) {
-        throw new Error(`登录请求异常: ${e.message}`);
+        // 修复4：兼容字符串错误 + 密码脱敏
+        const errorMsg = e instanceof Error 
+            ? e.message.replace(/password:\S+/g, 'password:***') 
+            : `网络层异常: ${String(e).replace(/password:\S+/g, 'password:***')}`;
+        throw new Error(`登录失败: ${errorMsg}`);
     }
 }
 
@@ -146,9 +162,16 @@ async function performCheckin(token) {
             return response.body.data;
         }
         
-        throw new Error(`签到失败 [${response.status}] ${response.body?.message || '未知错误'}`);
+        const bodyMsg = response.body 
+            ? (typeof response.body === 'string' ? response.body.substring(0, 200) : JSON.stringify(response.body).substring(0, 200))
+            : '无响应体';
+            
+        throw new Error(`HTTP ${response.status} | ${bodyMsg}`);
     } catch (e) {
-        throw new Error(`签到请求异常: ${e.message}`);
+        const errorMsg = e instanceof Error 
+            ? e.message 
+            : `签到异常: ${String(e)}`;
+        throw new Error(`签到失败: ${errorMsg}`);
     }
 }
 
@@ -197,15 +220,12 @@ async function main() {
         try {
             log(`开始处理账号 ${index + 1}/${accounts.length}: ${maskEmail(account.email)}`, "info");
             
-            // 1. 登录获取token
             const token = await performLogin(account.email, account.password);
             log(`✅ 账号 ${maskEmail(account.email)} 登录成功`, "info");
             
-            // 2. 执行签到
             const result = await performCheckin(token);
             successCount++;
             
-            // 3. 生成结果
             const message = handleResult(result, account.email);
             results.push(message);
             log(`✅ 账号 ${maskEmail(account.email)} 签到成功: +${result.today} MB`, "info");
@@ -213,11 +233,17 @@ async function main() {
         } catch (e) {
             const errorMsg = handleError(e, account.email);
             results.push(errorMsg);
+            // 修复5：关键错误立即打印诊断信息
+            if (e.message.includes('Network') || e.message.includes('DNS')) {
+                log(`🚨 网络诊断建议：
+1. 检查设备网络连接
+2. 尝试切换代理节点
+3. 在Loon中测试直连访问 https://api.69yun99.com`, "error");
+            }
             log(`❌ 账号 ${maskEmail(account.email)} 签到失败: ${e.message}`, "error");
         }
     }
 
-    // ========= 结果汇总 =========
     const summary = [
         `**69云机场签到汇总**`,
         `📅 日期: ${new Date().toLocaleDateString()}`,
@@ -226,7 +252,6 @@ async function main() {
         `❌ 失败: ${accounts.length - successCount} 个`
     ].join("\n");
     
-    // 静默模式不推送通知
     if (!isSilent && results.length > 0) {
         $notification.post(
             "69云签到", 
@@ -246,7 +271,7 @@ async function main() {
     } catch (e) {
         log(`脚本全局异常: ${e.message}`, "error");
         if (!isSilent) {
-            $notification.post("69云签到", "❌ 脚本错误", e.message);
+            $notification.post("69云签到", "❌ 脚本错误", e.message.substring(0, 200));
         }
         $done();
     }
