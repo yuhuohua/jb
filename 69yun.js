@@ -77,7 +77,7 @@ function performLogin(email, password) {
     return new Promise((resolve, reject) => {
         $httpClient.post({
             url: loginUrl,
-            header: {
+            headers: { // 修复：将 header 改为 headers
                 "User-Agent": userAgent,
                 "Origin": "https://69yun69.com",
                 "Referer": loginUrl,
@@ -106,14 +106,14 @@ function performCheckin(cookie) {
     return new Promise((resolve, reject) => {
         $httpClient.post({
             url: checkinUrl,
-            header: {
+            headers: { // 修复：将 header 改为 headers，并移除手动 Content-Length
                 "User-Agent": userAgent,
                 "Origin": "https://69yun69.com",
                 "Referer": "https://69yun69.com/user",
                 "X-Requested-With": "XMLHttpRequest",
-                "Cookie": cookie,
-                "Content-Length": "0"
-            }
+                "Cookie": cookie
+            },
+            body: "" // 修复：使用空 body 让 Loon 自动处理 Content-Length
         }, (error, response, data) => {
             if (error) return reject(new Error(error));
             try {
