@@ -21,60 +21,58 @@ const $ = new Env("🏥 众安健康");
   }
 
   if (tokens.length === 0) {
-    console.log("❌ 未检测到有效的 Token，请检查配置参数");
-    $.msg($.name, "❌ 配置错误", "请先在配置中填入至少一个 Token");
+    console.log("❌ 未检测到 Token，请检查配置");
+    $.msg($.name, "❌ 配置错误", "请先在配置中填入 Token");
     $.done();
     return;
   }
 
-  console.log(`🏥 ${$.name} 开始运行\n💡 弹窗门槛：${threshold} 元\n👤 账号总数：${tokens.length}`);
+  console.log(`🏥 ${$.name} 运行中 | 门槛: ${threshold}元 | 账号数: ${tokens.length}`);
 
   for (let i = 0; i < tokens.length; i++) {
     const accountIdx = i + 1;
-    console.log(`\n------ 账号 [${accountIdx}] 开始处理 ------`);
     try {
       await runTask(tokens[i], accountIdx, threshold);
     } catch (e) {
       console.log(`❌ [账号 ${accountIdx}] 异常: ${e.message || e}`);
     }
-    
-    if (i < tokens.length - 1) {
-      const waitTime = Math.floor(Math.random() * 2000) + 1000;
-      await $.wait(waitTime);
-    }
+    if (i < tokens.length - 1) await $.wait(Math.floor(Math.random() * 2000) + 1000);
   }
 
-  console.log(`\n------ 所有任务已完成 ------`);
   $.done();
 })();
 
 function runTask(token, idx, threshold) {
   return new Promise((resolve) => {
     const url = `https://api.iosxx.cn/zajkcx.php?token=${token}`;
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
-    };
+    const headers = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" };
 
     $.get({ url, headers, timeout: 15000 }, (err, resp, data) => {
+      let notifyMsg = "";
       if (err) {
-        console.log(`❌ [账号 ${idx}] 网络请求失败`);
+        notifyMsg = `📡 网络请求失败`;
       } else if (data) {
-        console.log(`✅ [账号 ${idx}] 数据获取成功`);
+        console.log(`[账号 ${idx}] 返回数据: \n${data}`);
+        const lines = data.split('\n');
+        let start = -1, end = -1;
+        for (let i = 0; i < lines.length; i++) if (lines[i].includes("📝 任务处理结果")) start = i;
+        for (let i = lines.length - 1; i >= 0; i--) if (lines[i].includes("💰 累计活动奖金")) { end = i; break; }
         
-        let amount = 0;
-        const amountMatch = data.match(/(?:金额|奖金)[:：]\s*([\d.]+)/);
-        if (amountMatch) amount = parseFloat(amountMatch[1]);
-
-        console.log(`💰 当前金额：${amount} 元`);
-
-        if (amount >= threshold) {
-          console.log(`🎉 金额达标，准备弹窗通知`);
-          $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达到设定门槛(${threshold}元)！`);
+        if (start !== -1 && end !== -1) {
+          notifyMsg = lines.slice(start, end + 1).join('\n');
         } else {
-          console.log(`ℹ️ 未达到门槛 ${threshold} 元，不弹窗`);
+          notifyMsg = lines.filter(line => /📝|✅|🎁|💰|---/.test(line)).join('\n') || data.substring(0, 100);
         }
+      }
+
+      let amount = 0;
+      const amountMatch = notifyMsg.match(/(?:金额|奖金)[:：]\s*([\d.]+)/);
+      if (amountMatch) amount = parseFloat(amountMatch[1]);
+
+      if (amount >= threshold) {
+        $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达标啦！\n${notifyMsg}`);
       } else {
-        console.log(`⚠️ [账号 ${idx}] 接口返回为空`);
+        console.log(`[账号 ${idx}] 金额 ${amount} 未达到门槛 ${threshold}，不弹窗`);
       }
       resolve();
     });
