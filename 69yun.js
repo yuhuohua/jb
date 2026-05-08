@@ -1,4 +1,4 @@
-const $ = typeof $loon !== "undefined" ? $loon : typeof $httpClient !== "undefined" ? $httpClient : {};
+// Surge Loon 双端完美兼容 69云签到 修复版
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1";
 const loginUrl = "https://69yun69.com/auth/login";
 const checkinUrl = "https://69yun69.com/user/checkin";
@@ -12,17 +12,28 @@ function parseParams() {
         arg = String($argument);
     }
 
-    if (arg.includes("silent=#")) {
+    // 清除Loon自带[]符号、多余空格
+    arg = arg.replace(/[\[\]]/g, "").trim();
+
+    // 识别静默开关
+    if (arg.includes("silent=#") || arg.endsWith("#")) {
         isSilent = true;
     }
 
-    let pureArg = arg.replace(/&?silent=#/g, "").replace(/\[|\]/g, "");
-    const parts = pureArg.split("#").filter(p => p.trim() !== "" && p.includes(":"));
-    
-    parts.forEach(p => {
-        const [email, password] = p.split(":").map(s => s.trim());
-        if (email && password && email.includes("@")) {
-            accounts.push({ email, password });
+    // 剔除静默参数，只保留账号部分
+    let accStr = arg.replace(/&?silent=#/g, "").trim();
+    if (!accStr) return;
+
+    // 按 # 分割多账号，空账号自动过滤
+    let list = accStr.split("#").filter(item => {
+        item = item.trim();
+        return item && item.includes(":") && item.includes("@");
+    });
+
+    list.forEach(item => {
+        let [email, pwd] = item.split(":").map(s => s.trim());
+        if (email && pwd) {
+            accounts.push({email, password: pwd});
         }
     });
 }
@@ -31,7 +42,7 @@ parseParams();
 
 if (accounts.length === 0) {
     console.log("⚠️ 未检测到有效账号，脚本结束");
-    if(typeof $done !== "undefined") $done();
+    $done?.();
     return;
 }
 
@@ -49,16 +60,14 @@ async function main() {
             handleResult(checkinRes, acc.email);
         } catch (err) {
             console.log(`❌ 失败: ${err.message}`);
-            if (!isSilent && typeof $notification !== "undefined") {
-                $notification.post("69云签到失败 ❌", maskedEmail, err.message);
-            }
+            if (!isSilent) $notification?.post("69云签到失败 ❌", maskedEmail, err.message);
         }
         
         if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 2000));
     }
     
     console.log("\n✅ 所有任务处理完毕");
-    if(typeof $done !== "undefined") $done();
+    $done?.();
 }
 
 function performLogin(email, password) {
@@ -118,16 +127,12 @@ function handleResult(result, email) {
     const masked = maskEmail(email);
     if (result.ret === 0 && result.msg.includes("已经签到过了")) {
         console.log(`ℹ️ [${masked}] 今日已签到`);
-        if (!isSilent && typeof $notification !== "undefined") {
-            $notification.post("🔁 69云今日已签到", masked, result.msg);
-        }
+        if (!isSilent) $notification?.post("🔁 69云今日已签到", masked, result.msg);
         return;
     }
     if (result.ret === 1) {
         console.log(`✅ [${masked}] 签到成功`);
-        if (!isSilent && typeof $notification !== "undefined") {
-            $notification.post("🎉 69云签到成功", masked, `流量: ${result.traffic || '已更新'}\n${result.msg}`);
-        }
+        if (!isSilent) $notification?.post("🎉 69云签到成功", masked, `流量: ${result.traffic || '已更新'}\n${result.msg}`);
         return;
     }
     throw new Error(result.msg || "未知错误");
