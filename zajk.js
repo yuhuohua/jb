@@ -2,20 +2,23 @@ const $ = new Env("🏥 众安健康");
 
 (async () => {
   let tokens = [];
+  let threshold = 5;
   const arg = typeof $argument !== 'undefined' ? $argument : "";
 
   if (arg) {
-    if (typeof arg === 'object') {
-      const rawValues = Array.isArray(arg) ? arg : Object.values(arg);
-      tokens = rawValues.map(v => String(v).trim());
-    } else if (typeof arg === 'string') {
-      tokens = arg.replace(/[\[\]]/g, "").split(/[#,]/);
+    let rawArr = [];
+    if (typeof arg === 'string') {
+      rawArr = arg.replace(/[\[\]]/g, "").split(/[#,]/).map(v => v.trim());
+    } else if (typeof arg === 'object') {
+      rawArr = Array.isArray(arg) ? arg : Object.values(arg);
     }
-  }
 
-  tokens = tokens
-    .map(t => t.replace(/['" ]/g, ""))
-    .filter(t => t !== "" && t !== "null" && t !== "undefined" && !t.includes("object Object"));
+    if (rawArr.length > 0 && !isNaN(rawArr[0]) && rawArr[0] !== "") {
+      threshold = parseFloat(rawArr.shift());
+    }
+    tokens = rawArr.map(v => String(v).replace(/['" ]/g, ""))
+                   .filter(t => t !== "" && t !== "null" && t !== "undefined");
+  }
 
   if (tokens.length === 0) {
     $.msg($.name, "❌ 配置错误", "请先在配置中填入至少一个 Token");
@@ -23,20 +26,16 @@ const $ = new Env("🏥 众安健康");
     return;
   }
 
-  console.log(`🏥 ${$.name}: 检测到 ${tokens.length} 个账号，开始顺序执行...`);
-
   for (let i = 0; i < tokens.length; i++) {
     const accountIdx = i + 1;
-    console.log(`\n--- 开始处理账号 [${accountIdx}] ---`);
     try {
-      await runTask(tokens[i], accountIdx);
+      await runTask(tokens[i], accountIdx, threshold);
     } catch (e) {
       console.log(`❌ [账号 ${accountIdx}] 运行异常: ${e.message || e}`);
     }
     
     if (i < tokens.length - 1) {
       const waitTime = Math.floor(Math.random() * 3000) + 2000;
-      console.log(`等待 ${waitTime/1000} 秒后继续...`);
       await $.wait(waitTime);
     }
   }
@@ -44,35 +43,27 @@ const $ = new Env("🏥 众安健康");
   $.done();
 })();
 
-function runTask(token, idx) {
+function runTask(token, idx, threshold) {
   return new Promise((resolve) => {
     const url = `https://api.iosxx.cn/zajkcx.php?token=${token}`;
     const headers = {
-      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
     };
 
     $.get({ url, headers, timeout: 15000 }, (err, resp, data) => {
       let notifyMsg = "";
       if (err) {
-        notifyMsg = `📡 网络请求失败，可能接口超时`;
-        console.log(`[账号 ${idx}] 错误: ${err}`);
-      } else {
-        const statusCode = resp ? (resp.status || resp.statusCode) : '未知';
-        if (statusCode === 400) {
-          notifyMsg = `🚫 Token 无效 (HTTP 400)`;
-        } else if (data) {
-          console.log(`[账号 ${idx}] 返回结果: \n${data}`);
-          const lines = data.split('\n');
-          let start = -1, end = -1;
-          for (let i = 0; i < lines.length; i++) if (lines[i].includes("📝 任务处理结果")) start = i;
-          for (let i = lines.length - 1; i >= 0; i--) if (lines[i].includes("💰 累计活动奖金")) { end = i; break; }
-          
-          if (start !== -1 && end !== -1) {
-            notifyMsg = lines.slice(start, end + 1).join('\n');
-          } else {
-            notifyMsg = lines.filter(line => /📝|✅|🎁|💰|---/.test(line)).join('\n') || data.substring(0, 100);
-          }
+        notifyMsg = `📡 网络请求失败`;
+      } else if (data) {
+        const lines = data.split('\n');
+        let start = -1, end = -1;
+        for (let i = 0; i < lines.length; i++) if (lines[i].includes("📝 任务处理结果")) start = i;
+        for (let i = lines.length - 1; i >= 0; i--) if (lines[i].includes("💰 累计活动奖金")) { end = i; break; }
+        
+        if (start !== -1 && end !== -1) {
+          notifyMsg = lines.slice(start, end + 1).join('\n');
+        } else {
+          notifyMsg = lines.filter(line => /📝|✅|🎁|💰|---/.test(line)).join('\n') || data.substring(0, 100);
         }
       }
 
@@ -80,10 +71,8 @@ function runTask(token, idx) {
       const amountMatch = notifyMsg.match(/(?:金额|奖金)[:：]\s*([\d.]+)/);
       if (amountMatch) amount = parseFloat(amountMatch[1]);
 
-      if (amount >= 5) {
-        $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达标啦！\n${notifyMsg}`);
-      } else if (notifyMsg.includes("🚫") || notifyMsg.includes("📡")) {
-        $.msg(`${$.name} [账号 ${idx}]`, "🚨 运行异常", notifyMsg);
+      if (amount >= threshold) {
+        $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达到设定门槛(${threshold}元)！\n${notifyMsg}`);
       }
       
       resolve();
