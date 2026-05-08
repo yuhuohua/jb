@@ -1,6 +1,4 @@
-const $ = typeof $loon !== "undefined" ? $loon : typeof $surge !== "undefined" ? $surge : typeof $task !== "undefined" ? $task : null;
-if (!$) $done();
-
+const $ = new Env("69云机场签到");
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1";
 const loginUrl = "https://69yun69.com/auth/login";
 const checkinUrl = "https://69yun69.com/user/checkin";
@@ -9,18 +7,22 @@ let isSilent = false;
 let accounts = [];
 
 function parseParams() {
-    let arg = (typeof $argument !== "undefined" && $argument) ? $argument : "";
-    let argStr = String(arg || "");
+    let arg = "";
+    if (typeof $argument !== "undefined" && $argument) {
+        arg = String($argument);
+    }
 
-    if (argStr.includes("silent=#")) isSilent = true;
-    let clearArg = argStr.replace("&silent=#", "").trim();
+    if (arg.includes("silent=#")) {
+        isSilent = true;
+    }
 
-    const parts = clearArg.split("#").filter(p => p.trim() !== "");
+    let pureArg = arg.replace(/&?silent=#/g, "").replace(/\[|\]/g, "");
+    const parts = pureArg.split(/[,#]/).filter(p => p.trim() !== "" && p.includes(":"));
+    
     parts.forEach(p => {
-        const sep = p.includes(":") ? ":" : (p.includes(",") ? "," : null);
-        if (sep) {
-            const [email, password] = p.split(sep).map(s => s.trim());
-            if (email && password) accounts.push({ email, password });
+        const [email, password] = p.split(":").map(s => s.trim());
+        if (email && password && email.includes("@")) {
+            accounts.push({ email, password });
         }
     });
 }
@@ -30,6 +32,7 @@ parseParams();
 if (accounts.length === 0) {
     console.log("⚠️ 未检测到有效账号，脚本结束");
     $done();
+    return;
 }
 
 async function main() {
@@ -46,7 +49,7 @@ async function main() {
             handleResult(checkinRes, acc.email);
         } catch (err) {
             console.log(`❌ 失败: ${err.message}`);
-            if (!isSilent) $.notification.post("69云签到失败 ❌", maskedEmail, err.message);
+            if (!isSilent) $notification.post("69云签到失败 ❌", maskedEmail, err.message);
         }
         
         if (i < accounts.length - 1) await new Promise(r => setTimeout(r, 2000));
@@ -59,7 +62,7 @@ async function main() {
 function performLogin(email, password) {
     const body = `email=${encodeURIComponent(email)}&passwd=${encodeURIComponent(password)}&code=`;
     return new Promise((resolve, reject) => {
-        $.httpClient.post({
+        $httpClient.post({
             url: loginUrl,
             header: {
                 "User-Agent": userAgent,
@@ -88,7 +91,7 @@ function performLogin(email, password) {
 
 function performCheckin(cookie) {
     return new Promise((resolve, reject) => {
-        $.httpClient.post({
+        $httpClient.post({
             url: checkinUrl,
             header: {
                 "User-Agent": userAgent,
@@ -113,12 +116,12 @@ function handleResult(result, email) {
     const masked = maskEmail(email);
     if (result.ret === 0 && result.msg.includes("已经签到过了")) {
         console.log(`ℹ️ [${masked}] 今日已签到`);
-        if (!isSilent) $.notification.post("🔁 69云今日已签到", masked, result.msg);
+        if (!isSilent) $notification.post("🔁 69云今日已签到", masked, result.msg);
         return;
     }
     if (result.ret === 1) {
         console.log(`✅ [${masked}] 签到成功`);
-        if (!isSilent) $.notification.post("🎉 69云签到成功", masked, `流量: ${result.traffic || '已更新'}\n${result.msg}`);
+        if (!isSilent) $notification.post("🎉 69云签到成功", masked, `流量: ${result.traffic || '已更新'}\n${result.msg}`);
         return;
     }
     throw new Error(result.msg || "未知错误");
