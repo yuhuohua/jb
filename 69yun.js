@@ -48,6 +48,15 @@ if (accounts.length === 0) {
     $done();
 }
 
+// 获取字符串的 UTF-8 字节长度（兼容没有 TextEncoder 的环境）
+function byteLength(str) {
+    if (typeof TextEncoder !== "undefined") {
+        return new TextEncoder().encode(str).length;
+    } else {
+        return unescape(encodeURIComponent(str)).length;
+    }
+}
+
 async function main() {
     console.log(`🚀 开始执行 69云多账号签到 | 共 ${accounts.length} 个账号`);
     
@@ -83,6 +92,7 @@ function performLogin(email, password) {
                 "Referer": loginUrl,
                 "X-Requested-With": "XMLHttpRequest",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Content-Length": String(byteLength(body)), // ← 关键修复点
                 "Accept": "application/json, text/javascript, */*; q=0.01",
                 "Accept-Language": "zh-CN,zh-Hans;q=0.9"
             },
@@ -93,6 +103,7 @@ function performLogin(email, password) {
             try {
                 const res = JSON.parse(data);
                 if (res.ret !== 1) return reject(new Error(res.msg || "登录失败"));
+                // 兼容不同大小写的 Set-Cookie 头
                 const cookie = response.headers['Set-Cookie'] || response.headers['set-cookie'] || '';
                 resolve({ cookie, data: res });
             } catch (e) {
