@@ -5,6 +5,9 @@ const $ = new Env("🏥 众安健康");
   let threshold = 5;
   const arg = typeof $argument !== 'undefined' ? $argument : "";
 
+  console.log(`[DEBUG] $argument 类型: ${typeof arg}`);
+  console.log(`[DEBUG] $argument 内容: ${JSON.stringify(arg)}`);
+
   if (arg) {
     let rawArr = [];
     if (typeof arg === 'string') {
@@ -12,13 +15,19 @@ const $ = new Env("🏥 众安健康");
     } else if (typeof arg === 'object') {
       rawArr = Array.isArray(arg) ? arg : Object.values(arg);
     }
+    
+    console.log(`[DEBUG] 解析后的 rawArr: ${JSON.stringify(rawArr)}`);
 
-    if (rawArr.length > 0 && !isNaN(rawArr[0]) && rawArr[0] !== "") {
+    if (rawArr.length > 0 && !isNaN(rawArr[0]) && rawArr[0] !== "" && rawArr[0] !== null) {
       threshold = parseFloat(rawArr.shift());
+      console.log(`[DEBUG] 确定提现门槛: ${threshold}`);
     }
+    
     tokens = rawArr.map(v => String(v).replace(/['" ]/g, ""))
-                   .filter(t => t !== "" && t !== "null" && t !== "undefined");
+                   .filter(t => t !== "" && t !== "null" && t !== "undefined" && t !== "undefined");
   }
+
+  console.log(`[DEBUG] 最终提取的 Tokens: ${JSON.stringify(tokens)}`);
 
   if (tokens.length === 0) {
     console.log("❌ 未检测到 Token，请检查配置");
@@ -52,7 +61,6 @@ function runTask(token, idx, threshold) {
       if (err) {
         notifyMsg = `📡 网络请求失败`;
       } else if (data) {
-        console.log(`[账号 ${idx}] 返回数据: \n${data}`);
         const lines = data.split('\n');
         let start = -1, end = -1;
         for (let i = 0; i < lines.length; i++) if (lines[i].includes("📝 任务处理结果")) start = i;
