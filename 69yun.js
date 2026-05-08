@@ -77,29 +77,26 @@ function performLogin(email, password) {
     return new Promise((resolve, reject) => {
         $httpClient.post({
             url: loginUrl,
-            headers: {
-                "Host": "69yun69.com",
+            header: {
                 "User-Agent": userAgent,
                 "Origin": "https://69yun69.com",
                 "Referer": loginUrl,
                 "X-Requested-With": "XMLHttpRequest",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "Accept": "application/json, text/javascript, */*; q=0.01",
-                "Accept-Language": "zh-CN,zh-Hans;q=0.9",
-                "Connection": "keep-alive"
+                "Accept-Language": "zh-CN,zh-Hans;q=0.9"
             },
             body: body
         }, (error, response, data) => {
-            if (error) return reject(new Error(`[登录阶段] 请求失败: ${error}`));
-            if (!response) return reject(new Error(`[登录阶段] 无响应数据`));
-            if (response.status !== 200) return reject(new Error(`[登录阶段] 状态码: ${response.status}`));
+            if (error) return reject(new Error(error));
+            if (response.status !== 200) return reject(new Error(`状态码: ${response.status}`));
             try {
                 const res = JSON.parse(data);
-                if (res.ret !== 1) return reject(new Error(`[登录阶段] 失败: ` + (res.msg || "未知")));
+                if (res.ret !== 1) return reject(new Error(res.msg || "登录失败"));
                 const cookie = response.headers['Set-Cookie'] || response.headers['set-cookie'] || '';
                 resolve({ cookie, data: res });
             } catch (e) {
-                reject(new Error("[登录阶段] 响应解析失败: " + data));
+                reject(new Error("登录响应解析失败"));
             }
         });
     });
@@ -109,24 +106,20 @@ function performCheckin(cookie) {
     return new Promise((resolve, reject) => {
         $httpClient.post({
             url: checkinUrl,
-            headers: {
-                "Host": "69yun69.com",
+            header: {
                 "User-Agent": userAgent,
                 "Origin": "https://69yun69.com",
                 "Referer": "https://69yun69.com/user",
                 "X-Requested-With": "XMLHttpRequest",
-                "Accept": "application/json, text/javascript, */*; q=0.01",
                 "Cookie": cookie,
-                "Connection": "keep-alive"
-            },
-            body: "" 
+                "Content-Length": "0"
+            }
         }, (error, response, data) => {
-            if (error) return reject(new Error(`[签到阶段] 请求失败: ${error}`));
-            if (!response) return reject(new Error(`[签到阶段] 无响应数据`));
+            if (error) return reject(new Error(error));
             try {
                 resolve(JSON.parse(data));
             } catch (e) {
-                reject(new Error("[签到阶段] 响应解析失败: " + data));
+                reject(new Error("签到响应解析失败"));
             }
         });
     });
@@ -134,7 +127,7 @@ function performCheckin(cookie) {
 
 function handleResult(result, email) {
     const masked = maskEmail(email);
-    if (result.ret === 0 && result.msg && result.msg.includes("已经签到过了")) {
+    if (result.ret === 0 && result.msg.includes("已经签到过了")) {
         console.log(`ℹ️ [${masked}] 今日已签到`);
         if (!isSilent) $notification.post("🔁 69云今日已签到", masked, result.msg);
         return;
