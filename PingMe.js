@@ -25,23 +25,26 @@ async function handleTask() {
         console.log("❌ 未获取到账号数据");
         return;
     }
+
     let accounts = JSON.parse(raw);
     if (!Array.isArray(accounts)) accounts = [accounts];
 
     for (let i = 0; i < accounts.length; i++) {
         let capture = accounts[i];
+        const accountIdx = i + 1;
         const headers = buildHeaders(capture);
         const fetchApi = (path) => $.get({ url: buildUrl(path, capture), headers });
-        const accountIdx = i + 1;
 
         try {
             console.log(`\n======= 开始处理账号 ${accountIdx} =======`);
+            
             let res = await fetchApi('queryBalanceAndBonus');
             let d = JSON.parse(res.body);
             let oldBalance = d.retcode === 0 ? d.result.balance : '?';
 
             let signRes = await fetchApi('checkIn');
-            console.log(`账号 ${accountIdx} 签到状态: ${signRes.body}`);
+            let signD = JSON.parse(signRes.body);
+            let checkInRes = signD.retcode === 0 ? "✅签到成功" : "⚠️签到失败";
 
             let vCount = 0;
             for (let v = 1; v <= MAX_VIDEO; v++) {
@@ -50,7 +53,6 @@ async function handleTask() {
                 let vD = JSON.parse(vRes.body);
                 if (vD.retcode === 0) {
                     vCount++;
-                    console.log(`账号 ${accountIdx} 视频广告: ${vCount}/${MAX_VIDEO}`);
                 } else break;
             }
 
@@ -58,6 +60,8 @@ async function handleTask() {
             d = JSON.parse(res.body);
             let newBalance = d.retcode === 0 ? d.result.balance : '?';
             
+            const runResult = `💰${oldBalance}➔${newBalance} | ${checkInRes} | 🎬视频:${vCount}`;
+
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
             const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -74,18 +78,17 @@ async function handleTask() {
                 } catch (e) {}
             }
 
-            const goldResult = `💰${oldBalance}➔${newBalance}`;
-            logData.summary.push(`🕒 ${timeStr} -> ${goldResult}`);
+            logData.summary.push(`🕒 ${timeStr} -> ${runResult}`);
             $.setdata(JSON.stringify(logData), accountLogKey);
 
             if (ARGS.notify === "1") {
-                $.notify(`${$.name} - 账号${accountIdx}`, "【单次通知】", `余额: ${goldResult}\n视频: ${vCount}`);
+                $.notify(`${$.name} - 账号${accountIdx}`, "【单次通知】", runResult);
             } else if (isLastRun) {
                 $.notify(`${$.name} - 账号${accountIdx}`, "📊 每日汇总", logData.summary.join('\n'));
                 $.setdata("", accountLogKey);
             }
             
-            console.log(`账号 ${accountIdx} 运行结果: ${goldResult} | 视频: ${vCount}`);
+            console.log(`账号 ${accountIdx} 运行完成: ${runResult}`);
 
         } catch (err) {
             console.log(`❌ 账号 ${accountIdx} 异常: ${err}`);
@@ -188,9 +191,9 @@ function buildHeaders(capture) {
 }
 
 function Env(name) {
+    const isSurge = typeof $httpClient !== 'undefined';
     const isQX = typeof $task !== 'undefined';
     const isLoon = typeof $notification !== 'undefined';
-    const isSurge = typeof $httpClient !== 'undefined';
     this.name = name;
     this.getdata = (k) => isQX ? $prefs.valueForKey(k) : $persistentStore.read(k);
     this.setdata = (v, k) => isQX ? $prefs.setValueForKey(v, k) : $persistentStore.write(v, k);
