@@ -1,26 +1,43 @@
+/*
+@Name：PingMe 自动化签到+视频奖励 (Loon 修复版)
+@modify Gemini
+*/
+
 const $ = new Env('PingMe签到');
 const isNode = $.isNode();
 const notify = isNode ? require('./sendNotify') : '';
-$.nodeNotifyMsg = [];
 
+// 配置初始化
 const ckKey = 'pingme_capture_v3';
 const logKey = 'pingme_daily_log';
 const SECRET = '0fOiukQq7jXZV2GRi9LGlO';
 const MAX_VIDEO = 5;
 const VIDEO_DELAY = 8000;
 
-const arg = (typeof $argument !== 'undefined' && $argument) ? Object.fromEntries($argument.split('&').map(item => item.split('='))) : {};
-const NOTIFY_MODE = parseInt(arg.notify || $.getdata('pingme_notify_mode') || '3');
-const SUMMARY_HOUR = parseInt(arg.time || $.getdata('pingme_summary_hour') || '22');
+// 参数解析函数 (修复 Loon 报错)
+const getArg = () => {
+    if (typeof $argument !== 'undefined' && typeof $argument === 'string' && $argument.length > 0) {
+        try {
+            return Object.fromEntries($argument.split('&').map(item => item.split('=')));
+        } catch (e) {
+            return {};
+        }
+    }
+    return {};
+};
+
+const arg = getArg();
+const NOTIFY_MODE = parseInt(arg.notify ?? $.getdata('pingme_notify_mode') ?? '3'); 
+const SUMMARY_HOUR = parseInt(arg.time ?? $.getdata('pingme_summary_hour') ?? '22');
 
 startTasks().then(() => $.done());
 
 async function startTasks() {
-    console.log(`🔔 开始运行 ${$.name}`);
+    console.log(`🔔 开始运行 ${$.name}，当前通知模式: ${NOTIFY_MODE}`);
     const raw = $.getdata(ckKey);
     
     if (!raw) {
-        await sendMsg("❌ 未获取到参数", "请先打开 PingMe 触发抓包");
+        if (NOTIFY_MODE !== 0) await sendMsg("❌ 未获取到参数", "请先打开 PingMe 触发抓包");
         return;
     }
 
@@ -28,7 +45,7 @@ async function startTasks() {
     try {
         capture = JSON.parse(raw);
     } catch (e) {
-        await sendMsg("❌ 参数损坏", "请重新抓取参数");
+        if (NOTIFY_MODE !== 0) await sendMsg("❌ 参数损坏", "请重新抓取参数");
         return;
     }
 
@@ -44,52 +61,54 @@ async function startTasks() {
     try {
         const res1 = await fetchApi('queryBalanceAndBonus');
         const d1 = JSON.parse(res1.body);
-        if (d1.retcode === 0) msgs.push(`💰 初始余额：${d1.result.balance} Coins`);
+        if (d1.retcode === 0) msgs.push(`💰 余额：${d1.result.balance} Coins`);
 
         const res2 = await fetchApi('checkIn');
         const d2 = JSON.parse(res2.body);
-        if (d2.retcode === 0) msgs.push(`✅ 签到：${(d2.result?.bonusHint || d2.retmsg || '').replace(/\n/g, ' ')}`);
+        if (d2.retcode === 0) msgs.push(`✅ 签到成功`);
 
         for (let i = 1; i <= MAX_VIDEO; i++) {
-            await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
+            await $.wait(VIDEO_DELAY);
             const resV = await fetchApi('videoBonus');
             const dV = JSON.parse(resV.body);
             if (dV.retcode === 0) {
                 msgs.push(`🎬 视频${i}：+${dV.result?.bonus || '?'} Coins`);
             } else {
-                msgs.push(`⏸ 视频${i}：${dV.retmsg}`);
                 if (dV.retmsg.includes('limit')) break;
             }
         }
-
-        const res3 = await fetchApi('queryBalanceAndBonus');
-        const d3 = JSON.parse(res3.body);
-        if (d3.retcode === 0) msgs.push(`📈 最终余额：${d3.result.balance} Coins`);
-
     } catch (e) {
         msgs.push(`❌ 运行异常: ${e.message || e}`);
     }
 
+    // 日志持久化
     const currentTaskMsg = msgs.join('\n');
     let dailyLog = $.getdata(logKey) || "";
-    const timestamp = `[${$.time('HH:mm')}]`;
-    dailyLog += `${timestamp}\n${currentTaskMsg}\n${'─'.repeat(20)}\n`;
+    dailyLog += `[${$.time('HH:mm')}]\n${currentTaskMsg}\n${'─'.repeat(15)}\n`;
     $.setdata(dailyLog, logKey);
 
-    if (NOTIFY_MODE === 1 || NOTIFY_MODE === 3) {
-        await sendMsg(`${$.name} - 实时结果`, currentTaskMsg);
+    // --- 执行通知逻辑 ---
+    if (NOTIFY_MODE === 0) {
+        console.log("🔇 通知模式为 0，跳过所有通知发送。");
+        return;
     }
 
+    // 每次通知 (模式 1 或 3)
+    if (NOTIFY_MODE === 1 || NOTIFY_MODE === 3) {
+        await sendMsg(`${$.name}`, currentTaskMsg);
+    }
+
+    // 定时汇总 (模式 2 或 3)
     if ((NOTIFY_MODE === 2 || NOTIFY_MODE === 3) && currentHour >= SUMMARY_HOUR) {
-        if (dailyLog) {
-            await sendMsg(`${$.name} - 今日汇总 (${SUMMARY_HOUR}点)`, dailyLog);
+        if (dailyLog.trim()) {
+            await sendMsg(`${$.name} 今日汇总`, dailyLog);
             $.setdata("", logKey);
         }
     }
 }
 
 async function sendMsg(title, desc) {
-    const icon = 'https://raw.githubusercontent.com/fmz200/wool_scripts/main/icons/apps/PingMe.png';
+    const icon = 'https://raw.githubusercontent.com/yuhuohua/tupiao/refs/heads/main/PingMe.png';
     if ($.isNode()) {
         await notify.sendNotify(title, desc);
     } else {
