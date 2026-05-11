@@ -1,6 +1,6 @@
 const $ = new Env('PingMe签到');
 const ckKey = 'pingme_capture_v3';
-const logKey = 'pingme_daily_log';
+const logKey = 'pingme_daily_log_v2';
 const SECRET = '0fOiukQq7jXZV2GRi9LGlO';
 const MAX_VIDEO = 5;
 const VIDEO_DELAY = 8000;
@@ -21,7 +21,10 @@ async function main() {
 
 async function handleTask() {
     const raw = $.getdata(ckKey);
-    if (!raw) return;
+    if (!raw) {
+        console.log("❌ 未获取到账号数据");
+        return;
+    }
     let accounts = JSON.parse(raw);
     if (!Array.isArray(accounts)) accounts = [accounts];
 
@@ -29,21 +32,26 @@ async function handleTask() {
         let capture = accounts[i];
         const headers = buildHeaders(capture);
         const fetchApi = (path) => $.get({ url: buildUrl(path, capture), headers });
+        const accountIdx = i + 1;
 
         try {
+            console.log(`\n======= 开始处理账号 ${accountIdx} =======`);
             let res = await fetchApi('queryBalanceAndBonus');
             let d = JSON.parse(res.body);
             let oldBalance = d.retcode === 0 ? d.result.balance : '?';
 
-            await fetchApi('checkIn');
+            let signRes = await fetchApi('checkIn');
+            console.log(`账号 ${accountIdx} 签到状态: ${signRes.body}`);
 
             let vCount = 0;
             for (let v = 1; v <= MAX_VIDEO; v++) {
                 await $.wait(v === 1 ? 1500 : VIDEO_DELAY);
                 let vRes = await fetchApi('videoBonus');
                 let vD = JSON.parse(vRes.body);
-                if (vD.retcode === 0) vCount++;
-                else break;
+                if (vD.retcode === 0) {
+                    vCount++;
+                    console.log(`账号 ${accountIdx} 视频广告: ${vCount}/${MAX_VIDEO}`);
+                } else break;
             }
 
             res = await fetchApi('queryBalanceAndBonus');
@@ -56,7 +64,7 @@ async function handleTask() {
             const currentHour = now.getHours();
             const isLastRun = currentHour >= 22;
 
-            const accountLogKey = `${logKey}_${i}`;
+            const accountLogKey = `${logKey}_acc_${i}`;
             let logData = { date: todayStr, summary: [] };
             const rawLog = $.getdata(accountLogKey);
             if (rawLog) {
@@ -71,14 +79,16 @@ async function handleTask() {
             $.setdata(JSON.stringify(logData), accountLogKey);
 
             if (ARGS.notify === "1") {
-                $.notify(`${$.name} - 账号${i+1}`, "【单次通知】", `余额: ${goldResult}\n视频: ${vCount}`);
+                $.notify(`${$.name} - 账号${accountIdx}`, "【单次通知】", `余额: ${goldResult}\n视频: ${vCount}`);
             } else if (isLastRun) {
-                $.notify(`${$.name} - 账号${i+1}`, "📊 每日汇总", logData.summary.join('\n'));
+                $.notify(`${$.name} - 账号${accountIdx}`, "📊 每日汇总", logData.summary.join('\n'));
                 $.setdata("", accountLogKey);
             }
+            
+            console.log(`账号 ${accountIdx} 运行结果: ${goldResult} | 视频: ${vCount}`);
 
         } catch (err) {
-            console.log(`账号${i+1}异常: ${err}`);
+            console.log(`❌ 账号 ${accountIdx} 异常: ${err}`);
         }
     }
     $.done();
