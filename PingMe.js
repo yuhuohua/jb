@@ -1,6 +1,6 @@
-const $ = new Env('PingMe签到');
+Const $ = new Env('PingMe签到');
 const ckKey = 'pingme_capture_v3';
-const logKey = 'pingme_daily_log_v2';
+const logKey = 'pingme_daily_log';
 const SECRET = '0fOiukQq7jXZV2GRi9LGlO';
 const MAX_VIDEO = 5;
 const VIDEO_DELAY = 8000;
@@ -21,78 +21,63 @@ async function main() {
 
 async function handleTask() {
     const raw = $.getdata(ckKey);
-    if (!raw) {
-        console.log("❌ 未获取到账号数据");
-        return;
-    }
+    if (!raw) return;
+    let capture = JSON.parse(raw);
+    const headers = buildHeaders(capture);
+    const msgs = [];
+    const fetchApi = (path) => $.get({ url: buildUrl(path, capture), headers });
 
-    let accounts = JSON.parse(raw);
-    if (!Array.isArray(accounts)) accounts = [accounts];
+    try {
+        let res = await fetchApi('queryBalanceAndBonus');
+        let d = JSON.parse(res.body);
+        let oldBalance = d.retcode === 0 ? d.result.balance : '?';
 
-    for (let i = 0; i < accounts.length; i++) {
-        let capture = accounts[i];
-        const accountIdx = i + 1;
-        const headers = buildHeaders(capture);
-        const fetchApi = (path) => $.get({ url: buildUrl(path, capture), headers });
+        res = await fetchApi('checkIn');
+        d = JSON.parse(res.body);
+        let checkInRes = d.retcode === 0 ? "✅签到成功" : "⚠️签到失败";
 
-        try {
-            console.log(`\n======= 开始处理账号 ${accountIdx} =======`);
-            
-            let res = await fetchApi('queryBalanceAndBonus');
-            let d = JSON.parse(res.body);
-            let oldBalance = d.retcode === 0 ? d.result.balance : '?';
-
-            let signRes = await fetchApi('checkIn');
-            let signD = JSON.parse(signRes.body);
-            let checkInRes = signD.retcode === 0 ? "✅签到成功" : "⚠️签到失败";
-
-            let vCount = 0;
-            for (let v = 1; v <= MAX_VIDEO; v++) {
-                await $.wait(v === 1 ? 1500 : VIDEO_DELAY);
-                let vRes = await fetchApi('videoBonus');
-                let vD = JSON.parse(vRes.body);
-                if (vD.retcode === 0) {
-                    vCount++;
-                } else break;
-            }
-
-            res = await fetchApi('queryBalanceAndBonus');
+        let vCount = 0;
+        for (let i = 1; i <= MAX_VIDEO; i++) {
+            await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
+            res = await fetchApi('videoBonus');
             d = JSON.parse(res.body);
-            let newBalance = d.retcode === 0 ? d.result.balance : '?';
-            
-            const runResult = `💰${oldBalance}➔${newBalance} | ${checkInRes} | 🎬视频:${vCount}`;
-
-            const now = new Date();
-            const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
-            const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-            const currentHour = now.getHours();
-            const isLastRun = currentHour >= 22;
-
-            const accountLogKey = `${logKey}_acc_${i}`;
-            let logData = { date: todayStr, summary: [] };
-            const rawLog = $.getdata(accountLogKey);
-            if (rawLog) {
-                try {
-                    const parsed = JSON.parse(rawLog);
-                    if (parsed.date === todayStr) logData = parsed;
-                } catch (e) {}
-            }
-
-            logData.summary.push(`🕒 ${timeStr} -> ${runResult}`);
-            $.setdata(JSON.stringify(logData), accountLogKey);
-
-            if (ARGS.notify === "1") {
-                $.notify(`${$.name} - 账号${accountIdx}`, "【单次通知】", runResult);
-            } else if (isLastRun) {
-                $.notify(`${$.name} - 账号${accountIdx}`, "📊 每日汇总", logData.summary.join('\n'));
-                $.setdata("", accountLogKey);
-            }
-            
-            console.log(`账号 ${accountIdx} 运行完成: ${runResult}`);
-
-        } catch (err) {
-            console.log(`❌ 账号 ${accountIdx} 异常: ${err}`);
+            if (d.retcode === 0) vCount++;
+            else break;
         }
+
+        res = await fetchApi('queryBalanceAndBonus');
+        d = JSON.parse(res.body);
+        let newBalance = d.retcode === 0 ? d.result.balance : '?';
+        
+        const runResult = `💰${oldBalance}➔${newBalance} | ${checkInRes} | 🎬视频:${vCount}`;
+
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+        const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const currentHour = now.getHours();
+        const isLastRun = currentHour >= 22;
+
+        let logData = { date: todayStr, summary: [] };
+        const rawLog = $.getdata(logKey);
+        if (rawLog) {
+            try {
+                const parsed = JSON.parse(rawLog);
+                if (parsed.date === todayStr) logData = parsed;
+            } catch (e) {}
+        }
+
+        logData.summary.push(`🕒 ${timeStr} -> ${runResult}`);
+        $.setdata(JSON.stringify(logData), logKey);
+
+        if (ARGS.notify === "1") {
+            $.notify($.name, "【单次通知】", runResult);
+        } else if (isLastRun) {
+            $.notify($.name, "📊 每日汇总", logData.summary.join('\n'));
+            $.setdata("", logKey);
+        }
+
+    } catch (err) {
+        console.log(err);
     }
     $.done();
 }
