@@ -1,4 +1,4 @@
-Const $ = new Env('PingMe签到');
+const $ = new Env('PingMe签到');
 const ckKey = 'pingme_capture_v3';
 const logKey = 'pingme_daily_log';
 const SECRET = '0fOiukQq7jXZV2GRi9LGlO';
