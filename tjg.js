@@ -1,4 +1,4 @@
-const url = "http://62.234.16.24:59/tjg";
+const url = "http://152.136.162.202/ScriptPanel/tjg.php";
 const storeKey = "tjg_products_cache";
 
 $httpClient.get(url, function(error, response, data) {
