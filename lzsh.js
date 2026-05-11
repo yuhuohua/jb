@@ -1,4 +1,4 @@
-const url = "http://62.234.16.24:1000/lz.php";
+const url = "http://152.136.162.202/ScriptPanel/lzsh.php";
 const $ = new Env("乐仔现金库存监控");
 
 $.get({ url: url }, (error, response, data) => {
