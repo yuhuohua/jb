@@ -42,7 +42,10 @@ function handleCapture() {
   const uaSeed = existed ? store.accounts[fp].uaSeed : store.order.length;
   const alias = existed ? store.accounts[fp].alias : `账号${store.order.length + 1}`;
   store.accounts[fp] = {
-    id: fp, alias, uaSeed, baseUA,
+    id: fp,
+    alias,
+    uaSeed,
+    baseUA,
     capture: { url: $request.url, paramsRaw, headers: headersMap },
     createdAt: existed ? store.accounts[fp].createdAt : now,
     updatedAt: now
@@ -50,21 +53,35 @@ function handleCapture() {
   if (!existed) store.order.push(fp);
   saveStore(store);
   const total = store.order.length;
-  $.notify(existed ? '🔄 账号参数已更新' : '✅ 新账号已入库', `${alias}`, `ID:${fp}\n当前总数：${total}`);
+  $.notify(existed ? '🔄 账号参数已更新' : '✅ 新账号已入库', `${alias}（id:${fp}）`, `当前账号总数：${total}`);
   $.done({});
 }
 
 async function handleTask() {
   const store = loadStore();
   const ids = store.order.filter(id => store.accounts[id]);
-  if (!ids.length) return $.done($.notify(scriptName, '⚠️ 未抓到任何账号', '请先打开 APP 触发抓包'));
+  if (!ids.length) {
+    $.notify(scriptName, '⚠️ 未抓到任何账号', '请先打开 WeTalk 触发抓包');
+    $.done();
+    return;
+  }
+
+  const total = ids.length;
+  const results = [];
+  for (let i = 0; i < ids.length; i++) {
+    const res = await runAccount(store.accounts[ids[i]], i, total);
+    results.push(res);
+    if (i < ids.length - 1) await $.wait(ACCOUNT_GAP);
+  }
 
   const logKey = 'wetalk_daily_log_v2';
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
   const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-  
-  let logData = { date: todayStr, accLogs: {} };
+  const currentHour = now.getHours();
+  const isLastRun = currentHour === 22;
+
+  let logData = { date: todayStr, summary: [] };
   const rawLog = $.getdata(logKey);
   if (rawLog) {
     try {
@@ -73,30 +90,23 @@ async function handleTask() {
     } catch (e) {}
   }
 
-  for (let i = 0; i < ids.length; i++) {
-    const acc = store.accounts[ids[i]];
-    const res = await runAccount(acc, i, ids.length);
-    
-    if (!logData.accLogs[ids[i]]) logData.accLogs[ids[i]] = [];
-    logData.accLogs[ids[i]].push(`🕒 ${timeStr} | ${res.replace(/\n/g, ' ')}`);
-
-    if (ARGS.notify === "1") {
-      $.notify(`🔔 WeTalk 运行通知`, acc.alias, res);
-    }
-    if (i < ids.length - 1) await $.wait(ACCOUNT_GAP);
-  }
-
+  const currentResult = results.join('\n\n');
+  const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
+  logData.summary.push(`🕒 ${timeStr}\n${briefRun}`);
   $.setdata(JSON.stringify(logData), logKey);
 
-  if (now.getHours() === 22 && ARGS.notify !== "1") {
-    for (const id of ids) {
-      const acc = store.accounts[id];
-      const history = logData.accLogs[id] || ["今日无记录"];
-      $.notify(`📊 今日汇总: ${acc.alias}`, `ID: ${id}`, history.join('\n'));
-      await $.wait(500);
-    }
+  let modeTag = "";
+  if (ARGS.notify === "1") {
+    modeTag = "【单次通知模式】";
+    $.notify(`🔔 WeTalk 单次通知 (${total}账号)`, "", currentResult);
+  } else if (isLastRun) {
+    modeTag = "【汇总通知模式】";
+    $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'));
+  } else {
+    modeTag = "【静默运行模式】";
   }
 
+  console.log(`${modeTag} ${timeStr} 完成任务\n${currentResult}`);
   $.done();
 }
 
@@ -113,9 +123,12 @@ function loadStore() {
   }
 }
 
-function saveStore(store) { $.setdata(JSON.stringify(store), storeKey); }
+function saveStore(store) {
+  $.setdata(JSON.stringify(store), storeKey);
+}
 
 async function runAccount(acc, index, total) {
+  const tag = `[账号${index+1}/${total}]`;
   const ua = buildUA(acc.baseUA, acc.uaSeed);
   const headers = buildHeaders(acc.capture, ua);
   const msgs = [];
@@ -128,7 +141,8 @@ async function runAccount(acc, index, total) {
 
     res = await fetchApi('checkIn');
     d = JSON.parse(res.body);
-    msgs.push(d.retcode === 0 ? `✅签到成功` : `⚠️签到:${d.retmsg||'失败'}`);
+    if (d.retcode === 0) msgs.push(`✅签到成功`);
+    else msgs.push(`⚠️签到：${d.retmsg || '失败'}`);
 
     let vCount = 0, vEarn = 0, vFail = '';
     for (let i = 1; i <= MAX_VIDEO; i++) {
@@ -149,9 +163,10 @@ async function runAccount(acc, index, total) {
     res = await fetchApi('queryBalanceAndBonus');
     d = JSON.parse(res.body);
     let newBalance = d.retcode === 0 ? d.result.balance : '?';
-    msgs.unshift(`💰 ${oldBalance} ➔ ${newBalance}`);
+    msgs.unshift(`${tag} 💰${oldBalance}➔${newBalance}`);
+
   } catch (err) {
-    msgs.push(`❌运行异常`);
+    msgs.push(`❌异常`);
   }
   return msgs.join('\n');
 }
