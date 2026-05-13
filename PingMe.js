@@ -9,7 +9,6 @@ const SECRET = '0fOiukQq7jXZV2GRi9LGlO';
 const MAX_VIDEO = 5;
 const VIDEO_DELAY = 8000;
 
-// 解析传入参数 (0: 22点汇总, 1: 每次通知)
 const ARGS = (() => {
     let mode = "0"; 
     if (typeof $argument !== "undefined" && $argument) {
@@ -44,12 +43,10 @@ async function handleTask() {
         return;
     }
 
-    // 运行账号任务
     const resMsg = await runAccount(capture);
     const results = [resMsg];
     const total = 1;
 
-    // 日志与时间处理
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
     const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -70,7 +67,6 @@ async function handleTask() {
     logData.summary.push(`🕒 ${timeStr}\n${briefRun}`);
     $.setdata(JSON.stringify(logData), logKey);
 
-    // 通知逻辑分发
     let modeTag = "";
     const mediaOpts = { 'media-url': 'https://raw.githubusercontent.com/yuhuohua/tupiao/refs/heads/main/PingMe.png' };
 
@@ -104,23 +100,20 @@ async function runAccount(capture) {
         return $.http.get({
             url: buildUrl(path, capture), 
             headers: headers,
-            timeout: 30000 // 强制延长请求超时时间至 30 秒
+            timeout: 30000 
         });
     };
 
     try {
-        // 1. 查询旧余额
         let res = await fetchApi('queryBalanceAndBonus');
         let d = JSON.parse(res.body);
         let oldBalance = d.retcode === 0 ? d.result.balance : '?';
 
-        // 2. 签到
         res = await fetchApi('checkIn');
         d = JSON.parse(res.body);
         if (d.retcode === 0) msgs.push(`✅签到成功`);
         else msgs.push(`⚠️签到：${d.retmsg || '失败'}`);
 
-        // 3. 视频奖励循环
         let vCount = 0, vEarn = 0, vFail = '';
         for (let i = 1; i <= MAX_VIDEO; i++) {
             await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
@@ -137,7 +130,6 @@ async function runAccount(capture) {
         if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount}次)`);
         if (vFail) msgs.push(`⏸视频中断`);
 
-        // 4. 查询新余额
         res = await fetchApi('queryBalanceAndBonus');
         d = JSON.parse(res.body);
         let newBalance = d.retcode === 0 ? d.result.balance : '?';
