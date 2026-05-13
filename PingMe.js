@@ -80,7 +80,7 @@ async function handleTask() {
     } else if (isLastRun) {
         modeTag = "【汇总通知模式】";
         if (!isNode) {
-            $.msg(`📊 PingMe 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join(''), mediaOpts);
+            $.msg(`📊 PingMe 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n'), mediaOpts);
         } else {
             await sendMsg(`📊 PingMe 每日变动汇总\n\n${logData.summary.join('')}`, "");
         }
