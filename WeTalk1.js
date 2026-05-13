@@ -101,7 +101,7 @@ async function handleTask() {
     $.notify(`🔔 WeTalk 单次通知 (${total}账号)`, "", currentResult);
   } else if (isLastRun) {
     modeTag = "【汇总通知模式】";
-    $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'));
+    $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n'));
   } else {
     modeTag = "【静默运行模式】";
   }
