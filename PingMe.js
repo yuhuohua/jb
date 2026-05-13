@@ -80,9 +80,9 @@ async function handleTask() {
     } else if (isLastRun) {
         modeTag = "【汇总通知模式】";
         if (!isNode) {
-            $.msg(`📊 PingMe 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n'), mediaOpts);
+            $.msg(`📊 PingMe 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join(''), mediaOpts);
         } else {
-            await sendMsg(`📊 PingMe 每日变动汇总\n\n${logData.summary.join('\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n')}`, "");
+            await sendMsg(`📊 PingMe 每日变动汇总\n\n${logData.summary.join('')}`, "");
         }
     } else {
         modeTag = "【静默运行模式】";
