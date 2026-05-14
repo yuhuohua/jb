@@ -64,7 +64,7 @@ async function handleTask() {
 
     const currentResult = results.join('\n\n');
     const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
-    logData.summary.push(`🕒 ${timeStr}\n${briefRun}`);
+    logData.summary.push(`🕒 ${timeStr}${briefRun}`);
     $.setdata(JSON.stringify(logData), logKey);
 
     let modeTag = "";
