@@ -25,33 +25,29 @@ async function main() {
     await handleTask();
 }
 
+function sMsg(m) {
+    if (!m) return '未知';
+    if (m.includes('已经签过到')) return '已签';
+    if (m.includes('次数过多')) return '频繁';
+    if (m.includes('失败')) return '失败';
+    return m.replace(/[。！，].*$/, ''); // 截掉标点后的废话
+}
+
 async function handleTask() {
-    console.log("开始运行 PingMe 签到任务");
     const raw = $.getdata(ckKey);
     if (!raw) {
-        console.log("❌ 请先获取PingMe签到参数");
-        if (ARGS.notify === "1") $.msg($.name, "⚠️ 未抓到参数", "请先打开 PingMe 触发一次");
+        if (ARGS.notify === "1") $.msg($.name, "⚠️ 未抓到参数", "请打开 App 触发");
         return;
     }
     
     let capture;
-    try {
-        capture = JSON.parse(raw);
-    } catch (e) {
-        console.log("❌ PingMe签到参数损坏");
-        if (ARGS.notify === "1") $.msg($.name, "⚠️ 参数损坏", "可打开PingMe再触发一次");
-        return;
-    }
+    try { capture = JSON.parse(raw); } catch (e) { return; }
 
     const resMsg = await runAccount(capture);
-    const results = [resMsg];
-    const total = 1;
-
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
     const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const currentHour = now.getHours();
-    const isLastRun = currentHour === 22;
+    const isLastRun = now.getHours() >= 22; 
 
     let logData = { date: todayStr, summary: [] };
     const rawLog = $.getdata(logKey);
@@ -62,84 +58,67 @@ async function handleTask() {
         } catch (e) {}
     }
 
-    const currentResult = results.join('\n\n');
-    const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
-    logData.summary.push(`🕒 ${timeStr}${briefRun}`);
+    logData.summary.push(`🕒${timeStr} ${resMsg}`);
     $.setdata(JSON.stringify(logData), logKey);
 
-    let modeTag = "";
     const mediaOpts = { 'media-url': 'https://raw.githubusercontent.com/yuhuohua/tupiao/refs/heads/main/PingMe.png' };
 
     if (ARGS.notify === "1") {
-        modeTag = "【单次通知模式】";
-        if (!isNode) {
-            $.msg(`🔔 PingMe 单次通知`, "", currentResult, mediaOpts);
-        } else {
-            await sendMsg(`🔔 PingMe 单次通知\n\n${currentResult}`, "");
-        }
+        $.msg(`🔔 PingMe 单次通知`, `时间: ${timeStr}`, resMsg, mediaOpts);
     } else if (isLastRun) {
-        modeTag = "【汇总通知模式】";
+        const title = `📊 PingMe 每日变动汇总`;
+        const subTitle = `共 1 个账号 | ${todayStr}`;
+        const mainBody = logData.summary.join('\n');
+        
         if (!isNode) {
-            $.msg(`📊 PingMe 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n'), mediaOpts);
+            $.msg(title, subTitle, mainBody, mediaOpts);
         } else {
-            await sendMsg(`📊 PingMe 每日变动汇总\n\n${logData.summary.join('')}`, "");
+            await sendMsg(`${title}\n${subTitle}\n\n${mainBody}`, "");
         }
-    } else {
-        modeTag = "【静默运行模式】";
     }
-
-    console.log(`${modeTag} ${timeStr} 完成任务\n${currentResult}`);
+    console.log(`[PingMe] ${timeStr} 运行完成\n${resMsg}`);
 }
 
 async function runAccount(capture) {
     const headers = buildHeaders(capture);
     const msgs = [];
-    const tag = `[账号1/1]`; 
-
-    const fetchApi = (path) => {
-        return $.http.get({
-            url: buildUrl(path, capture), 
-            headers: headers,
-            timeout: 30000 
-        });
-    };
+    const tag = `[1/1]`; 
 
     try {
-        let res = await fetchApi('queryBalanceAndBonus');
+        let res = await $.http.get({ url: buildUrl('queryBalanceAndBonus', capture), headers: headers });
         let d = JSON.parse(res.body);
-        let oldBalance = d.retcode === 0 ? d.result.balance : '?';
+        let oldB = d.retcode === 0 ? d.result.balance : '?';
 
-        res = await fetchApi('checkIn');
+        res = await $.http.get({ url: buildUrl('checkIn', capture), headers: headers });
         d = JSON.parse(res.body);
-        if (d.retcode === 0) msgs.push(`✅签到成功`);
-        else msgs.push(`⚠️签到：${d.retmsg || '失败'}`);
+        let signSt = d.retcode === 0 ? '✅' : `⚠️${sMsg(d.retmsg)}`;
 
         let vCount = 0, vEarn = 0, vFail = '';
         for (let i = 1; i <= MAX_VIDEO; i++) {
-            await $.wait(i === 1 ? 1500 : VIDEO_DELAY);
-            res = await fetchApi('videoBonus');
+            await $.wait(i === 1 ? 1000 : VIDEO_DELAY);
+            res = await $.http.get({ url: buildUrl('videoBonus', capture), headers: headers });
             d = JSON.parse(res.body);
             if (d.retcode === 0) {
                 vCount++;
                 vEarn += parseFloat(d.result?.bonus || 0);
             } else {
-                vFail = d.retmsg;
-                break;
+                vFail = d.retmsg; break;
             }
         }
-        if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount}次)`);
-        if (vFail) msgs.push(`⏸视频中断`);
-
-        res = await fetchApi('queryBalanceAndBonus');
+        
+        res = await $.http.get({ url: buildUrl('queryBalanceAndBonus', capture), headers: headers });
         d = JSON.parse(res.body);
-        let newBalance = d.retcode === 0 ? d.result.balance : '?';
-        msgs.unshift(`${tag} 💰${oldBalance}➔${newBalance}`);
+        let newB = d.retcode === 0 ? d.result.balance : '?';
+
+        msgs.push(`${tag} 💰${oldB}→${newB}`);
+        msgs.push(signSt);
+        if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount})`);
+        if (vFail) msgs.push(`⏸${sMsg(vFail)}`);
 
     } catch (err) {
         msgs.push(`❌异常`);
-        console.log(err.error || String(err));
     }
-    return msgs.join('\n');
+    return msgs.join(' ');
 }
 
 function MD5(string) {
@@ -221,7 +200,7 @@ function getUTCSignDate() {
     return `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())} ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
 }
 
-function buildSignedParamsRaw(capture) {
+function buildUrl(path, capture) {
     const params = {};
     Object.keys(capture.paramsRaw || {}).forEach(k => {
         if (k !== 'sign' && k !== 'signDate') params[k] = capture.paramsRaw[k];
@@ -229,29 +208,18 @@ function buildSignedParamsRaw(capture) {
     params.signDate = getUTCSignDate();
     const signBase = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
     params.sign = MD5(signBase + SECRET);
-    return params;
-}
-
-function buildUrl(path, capture) {
-    const params = buildSignedParamsRaw(capture);
     const qs = Object.keys(params).map(k => `${k}=${encodeURIComponent(params[k])}`).join('&');
     return `https://api.pingmeapp.net/app/${path}?${qs}`;
 }
 
-function cloneHeaders(headers) {
-    const out = {};
-    Object.keys(headers || {}).forEach(k => out[k] = headers[k]);
-    return out;
-}
-
 function buildHeaders(capture) {
-    const headers = cloneHeaders(capture.headers || {});
+    const headers = Object.assign({}, capture.headers || {});
     delete headers['Content-Length']; delete headers['content-length'];
     delete headers[':authority']; delete headers[':method']; delete headers[':path']; delete headers[':scheme'];
     headers['Host'] = 'api.pingmeapp.net';
-    headers['Accept'] = headers['Accept'] || 'application/json';
     return headers;
 }
 
-async function sendMsg(desc, opts) { $.isNode() ? await notify.sendNotify($.name, desc) : $.msg($.name, $.subTitle || "", desc, opts) }
+async function sendMsg(desc, opts) { $.isNode() ? await notify.sendNotify($.name, desc) : $.msg($.name, "", desc, opts) }
+
 function Env(t,e){class s{constructor(t){this.env=t}send(t,e="GET"){t="string"==typeof t?{url:t}:t;let s=this.get;"POST"===e&&(s=this.post);const i=new Promise(((e,i)=>{s.call(this,t,((t,s,o)=>{t?i(t):e(s)}))}));return t.timeout?((t,e=1e3)=>Promise.race([t,new Promise(((t,s)=>{setTimeout((()=>{s(new Error("请求超时"))}),e)}))]))(i,t.timeout):i}get(t){return this.send.call(this.env,t)}post(t){return this.send.call(this.env,t,"POST")}}return new class{constructor(t,e){this.logLevels={debug:0,info:1,warn:2,error:3},this.logLevelPrefixs={debug:"[DEBUG] ",info:"[INFO] ",warn:"[WARN] ",error:"[ERROR] "},this.logLevel="info",this.name=t,this.http=new s(this),this.data=null,this.dataFile="box.dat",this.logs=[],this.isMute=!1,this.isNeedRewrite=!1,this.logSeparator="\n",this.encoding="utf-8",this.startTime=(new Date).getTime(),Object.assign(this,e),this.log("",`🔔${this.name}, 开始!`)}getEnv(){return"undefined"!=typeof $environment&&$environment["surge-version"]?"Surge":"undefined"!=typeof $environment&&$environment["stash-version"]?"Stash":"undefined"!=typeof module&&module.exports?"Node.js":"undefined"!=typeof $task?"Quantumult X":"undefined"!=typeof $loon?"Loon":"undefined"!=typeof $rocket?"Shadowrocket":void 0}isNode(){return"Node.js"===this.getEnv()}isQuanX(){return"Quantumult X"===this.getEnv()}isSurge(){return"Surge"===this.getEnv()}isLoon(){return"Loon"===this.getEnv()}isShadowrocket(){return"Shadowrocket"===this.getEnv()}isStash(){return"Stash"===this.getEnv()}toObj(t,e=null){try{return JSON.parse(t)}catch{return e}}toStr(t,e=null,...s){try{return JSON.stringify(t,...s)}catch{return e}}getjson(t,e){let s=e;if(this.getdata(t))try{s=JSON.parse(this.getdata(t))}catch{}return s}setjson(t,e){try{return this.setdata(JSON.stringify(t),e)}catch{return!1}}getScript(t){return new Promise((e=>{this.get({url:t},((t,s,i)=>e(i)))}))}runScript(t,e){return new Promise((s=>{let i=this.getdata("@chavy_boxjs_userCfgs.httpapi");i=i?i.replace(/\n/g,"").trim():i;let o=this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");o=o?1*o:20,o=e&&e.timeout?e.timeout:o;const[r,a]=i.split("@"),n={url:`http://${a}/v1/scripting/evaluate`,body:{script_text:t,mock_type:"cron",timeout:o},headers:{"X-Key":r,Accept:"*/*"},policy:"DIRECT",timeout:o};this.post(n,((t,e,i)=>s(i)))})).catch((t=>this.logErr(t)))}loaddata(){if(!this.isNode())return{};{this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e);if(!s&&!i)return{};{const i=s?t:e;try{return JSON.parse(this.fs.readFileSync(i))}catch(t){return{}}}}}writedata(){if(this.isNode()){this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e),o=JSON.stringify(this.data);s?this.fs.writeFileSync(t,o):i?this.fs.writeFileSync(e,o):this.fs.writeFileSync(t,o)}}lodash_get(t,e,s){const i=e.replace(/\[(\d+)\]/g,".$1").split(".");let o=t;for(const t of i)if(o=Object(o)[t],void 0===o)return s;return o}lodash_set(t,e,s){return Object(t)!==t||(Array.isArray(e)||(e=e.toString().match(/[^.[\]]+/g)||[]),e.slice(0,-1).reduce(((t,s,i)=>Object(t[s])===t[s]?t[s]:t[s]=Math.abs(e[i+1])>>0==+e[i+1]?[]:{}),t)[e[e.length-1]]=s),t}getdata(t){let e=this.getval(t);if(/^@/.test(t)){const[,s,i]=/^@(.*?)\.(.*?)$/.exec(t),o=s?this.getval(s):"";if(o)try{const t=JSON.parse(o);e=t?this.lodash_get(t,i,""):e}catch(t){e=""}}return e}setdata(t,e){let s=!1;if(/^@/.test(e)){const[,i,o]=/^@(.*?)\.(.*?)$/.exec(e),r=this.getval(i),a=i?"null"===r?null:r||"{}":"{}";try{const e=JSON.parse(a);this.lodash_set(e,o,t),s=this.setval(JSON.stringify(e),i)}catch(e){const r={};this.lodash_set(r,o,t),s=this.setval(JSON.stringify(r),i)}}else s=this.setval(t,e);return s}getval(t){switch(this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":return $persistentStore.read(t);case"Quantumult X":return $prefs.valueForKey(t);case"Node.js":return this.data=this.loaddata(),this.data[t];default:return this.data&&this.data[t]||null}}setval(t,e){switch(this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":return $persistentStore.write(t,e);case"Quantumult X":return $prefs.setValueForKey(t,e);case"Node.js":return this.data=this.loaddata(),this.data[e]=t,this.writedata(),!0;default:return this.data&&this.data[e]||null}}initGotEnv(t){this.got=this.got?this.got:require("got"),this.cktough=this.cktough?this.cktough:require("tough-cookie"),this.ckjar=this.ckjar?this.ckjar:new this.cktough.CookieJar,t&&(t.headers=t.headers?t.headers:{},t&&(t.headers=t.headers?t.headers:{},void 0===t.headers.cookie&&void 0===t.headers.Cookie&&void 0===t.cookieJar&&(t.cookieJar=this.ckjar)))}get(t,e=(()=>{})){switch(t.headers&&(delete t.headers["Content-Type"],delete t.headers["Content-Length"],delete t.headers["content-type"],delete t.headers["content-length"]),t.params&&(t.url+="?"+this.queryStr(t.params)),void 0===t.followRedirect||t.followRedirect||((this.isSurge()||this.isLoon())&&(t["auto-redirect"]=!1),this.isQuanX()&&(t.opts?t.opts.redirection=!1:t.opts={redirection:!1})),this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":default:this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.get(t,((t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status?s.status:s.statusCode,s.status=s.statusCode),e(t,s,i)}));break;case"Quantumult X":this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then((t=>{const{statusCode:s,statusCode:i,headers:o,body:r,bodyBytes:a}=t;e(null,{status:s,statusCode:i,headers:o,body:r,bodyBytes:a},r,a)}),(t=>e(t&&t.error||"UndefinedError")));break;case"Node.js":let s=require("iconv-lite");this.initGotEnv(t),this.got(t).on("redirect",((t,e)=>{try{if(t.headers["set-cookie"]){const s=t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();s&&this.ckjar.setCookieSync(s,null),e.cookieJar=this.ckjar}}catch(t){this.logErr(t)}})).then((t=>{const{statusCode:i,statusCode:o,headers:r,rawBody:a}=t,n=s.decode(a,this.encoding);e(null,{status:i,statusCode:o,headers:r,rawBody:a,body:n},n)}),(t=>{const{message:i,response:o}=t;e(i,o,o&&s.decode(o.rawBody,this.encoding))}));break}}post(t,e=(()=>{})){const s=t.method?t.method.toLocaleLowerCase():"post";switch(t.body&&t.headers&&!t.headers["Content-Type"]&&!t.headers["content-type"]&&(t.headers["content-type"]="application/x-www-form-urlencoded"),t.headers&&(delete t.headers["Content-Length"],delete t.headers["content-length"]),void 0===t.followRedirect||t.followRedirect||((this.isSurge()||this.isLoon())&&(t["auto-redirect"]=!1),this.isQuanX()&&(t.opts?t.opts.redirection=!1:t.opts={redirection:!1})),this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":default:this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient[s](t,((t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status?s.status:s.statusCode,s.status=s.statusCode),e(t,s,i)}));break;case"Quantumult X":t.method=s,this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then((t=>{const{statusCode:s,statusCode:i,headers:o,body:r,bodyBytes:a}=t;e(null,{status:s,statusCode:i,headers:o,body:r,bodyBytes:a},r,a)}),(t=>e(t&&t.error||"UndefinedError")));break;case"Node.js":let i=require("iconv-lite");this.initGotEnv(t);const{url:o,...r}=t;this.got[s](o,r).then((t=>{const{statusCode:s,statusCode:o,headers:r,rawBody:a}=t,n=i.decode(a,this.encoding);e(null,{status:s,statusCode:o,headers:r,rawBody:a,body:n},n)}),(t=>{const{message:s,response:o}=t;e(s,o,o&&i.decode(o.rawBody,this.encoding))}));break}}time(t,e=null){const s=e?new Date(e):new Date;let i={"M+":s.getMonth()+1,"d+":s.getDate(),"H+":s.getHours(),"m+":s.getMinutes(),"s+":s.getSeconds(),"q+":Math.floor((s.getMonth()+3)/3),S:s.getMilliseconds()};/(y+)/.test(t)&&(t=t.replace(RegExp.$1,(s.getFullYear()+"").substr(4-RegExp.$1.length)));for(let e in i)new RegExp("("+e+")").test(t)&&(t=t.replace(RegExp.$1,1==RegExp.$1.length?i[e]:("00"+i[e]).substr((""+i[e]).length)));return t}queryStr(t){let e="";for(const s in t){let i=t[s];null!=i&&""!==i&&("object"==typeof i&&(i=JSON.stringify(i)),e+=`${s}=${i}&`)}return e=e.substring(0,e.length-1),e}msg(e=t,s="",i="",o={}){const r=t=>{const{$open:e,$copy:s,$media:i,$mediaMime:o}=t;switch(typeof t){case void 0:return t;case"string":switch(this.getEnv()){case"Surge":case"Stash":default:return{url:t};case"Loon":case"Shadowrocket":return t;case"Quantumult X":return{"open-url":t};case"Node.js":return}case"object":switch(this.getEnv()){case"Surge":case"Stash":case"Shadowrocket":default:{const r={};let a=t.openUrl||t.url||t["open-url"]||e;a&&Object.assign(r,{action:"open-url",url:a});let n=t["update-pasteboard"]||t.updatePasteboard||s;if(n&&Object.assign(r,{action:"clipboard",text:n}),i){let t,e,s;if(i.startsWith("http"))t=i;else if(i.startsWith("data:")){const[t]=i.split(";"),[,o]=i.split(",");e=o,s=t.replace("data:","")}else{e=i,s=(t=>{const e={JVBERi0:"application/pdf",R0lGODdh:"image/gif",R0lGODlh:"image/gif",iVBORw0KGgo:"image/png","/9j/":"image/jpg"};for(var s in e)if(0===t.indexOf(s))return e[s];return null})(i)}Object.assign(r,{"media-url":t,"media-base64":e,"media-base64-mime":o??s})}return Object.assign(r,{"auto-dismiss":t["auto-dismiss"],sound:t.sound}),r}case"Loon":{const s={};let o=t.openUrl||t.url||t["open-url"]||e;o&&Object.assign(s,{openUrl:o});let r=t.mediaUrl||t["media-url"];return i?.startsWith("http")&&(r=i),r&&Object.assign(s,{mediaUrl:r}),console.log(JSON.stringify(s)),s}case"Quantumult X":{const o={};let r=t["open-url"]||t.url||t.openUrl||e;r&&Object.assign(o,{"open-url":r});let a=t["media-url"]||t.mediaUrl;i?.startsWith("http")&&(a=i),a&&Object.assign(o,{"media-url":a});let n=t["update-pasteboard"]||t.updatePasteboard||s;return n&&Object.assign(o,{"update-pasteboard":n}),console.log(JSON.stringify(o)),o}case"Node.js":return}default:return}};if(!this.isMute)switch(this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":default:$notification.post(e,s,i,r(o));break;case"Quantumult X":$notify(e,s,i,r(o));break;case"Node.js":break}if(!this.isMuteLog){let t=["","==============📣系统通知📣=============="];t.push(e),s&&t.push(s),i&&t.push(i),console.log(t.join("\n")),this.logs=this.logs.concat(t)}}debug(...t){this.logLevels[this.logLevel]<=this.logLevels.debug&&(t.length>0&&(this.logs=[...this.logs,...t]),console.log(`${this.logLevelPrefixs.debug}${t.map((t=>t??String(t))).join(this.logSeparator)}`))}info(...t){this.logLevels[this.logLevel]<=this.logLevels.info&&(t.length>0&&(this.logs=[...this.logs,...t]),console.log(`${this.logLevelPrefixs.info}${t.map((t=>t??String(t))).join(this.logSeparator)}`))}warn(...t){this.logLevels[this.logLevel]<=this.logLevels.warn&&(t.length>0&&(this.logs=[...this.logs,...t]),console.log(`${this.logLevelPrefixs.warn}${t.map((t=>t??String(t))).join(this.logSeparator)}`))}error(...t){this.logLevels[this.logLevel]<=this.logLevels.error&&(t.length>0&&(this.logs=[...this.logs,...t]),console.log(`${this.logLevelPrefixs.error}${t.map((t=>t??String(t))).join(this.logSeparator)}`))}log(...t){t.length>0&&(this.logs=[...this.logs,...t]),console.log(t.map((t=>t??String(t))).join(this.logSeparator))}logErr(t,e){switch(this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":case"Quantumult X":default:this.log("",`❗️${this.name}, 错误!`,e,t);break;case"Node.js":this.log("",`❗️${this.name}, 错误!`,e,void 0!==t.message?t.message:t,t.stack);break}}wait(t){return new Promise((e=>setTimeout(e,t)))}done(t={}){const e=((new Date).getTime()-this.startTime)/1e3;switch(this.log("",`🔔${this.name}, 结束! 🕛 ${e} 秒`),this.log(),this.getEnv()){case"Surge":case"Loon":case"Stash":case"Shadowrocket":case"Quantumult X":default:$done(t);break;case"Node.js":process.exit(1)}}}(t,e)}
