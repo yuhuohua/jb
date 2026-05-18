@@ -31,6 +31,14 @@ async function main() {
   }
 }
 
+function sMsg(m) {
+    if (!m) return '未知';
+    if (m.includes('已经签过到')) return '已签';
+    if (m.includes('次数过多')) return '频繁';
+    if (m.includes('失败')) return '失败';
+    return m.replace(/[。！，].*$/, '');
+}
+
 function handleCapture() {
   const paramsRaw = parseRawQuery($request.url);
   const headersMap = normalizeHeaderNameMap($request.headers || {});
@@ -79,7 +87,7 @@ async function handleTask() {
   const todayStr = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
   const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
   const currentHour = now.getHours();
-  const isLastRun = currentHour === 22;
+  const isLastRun = currentHour >= 22;
 
   let logData = { date: todayStr, summary: [] };
   const rawLog = $.getdata(logKey);
@@ -90,18 +98,19 @@ async function handleTask() {
     } catch (e) {}
   }
 
-  const currentResult = results.join('\n\n');
-  const briefRun = results.map(r => r.split('\n').join(' | ')).join('\n');
-  logData.summary.push(`🕒 ${timeStr}${briefRun}`);
+  const currentResult = results.join('\n');
+  
+  const briefRun = results.length > 1 ? '\n' + results.join('\n') : ' ' + results[0];
+  logData.summary.push(`🕒${timeStr}${briefRun}`);
   $.setdata(JSON.stringify(logData), logKey);
 
   let modeTag = "";
   if (ARGS.notify === "1") {
     modeTag = "【单次通知模式】";
-    $.notify(`🔔 WeTalk 单次通知 (${total}账号)`, "", currentResult);
+    $.notify(`🔔 WeTalk 单次通知`, `时间: ${timeStr} | 共 ${total} 账号`, currentResult);
   } else if (isLastRun) {
     modeTag = "【汇总通知模式】";
-    $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号`, logData.summary.join('\n'));
+    $.notify(`📊 WeTalk 每日变动汇总`, `共 ${total} 个账号 | ${todayStr}`, logData.summary.join('\n'));
   } else {
     modeTag = "【静默运行模式】";
   }
@@ -141,8 +150,7 @@ async function runAccount(acc, index, total) {
 
     res = await fetchApi('checkIn');
     d = JSON.parse(res.body);
-    if (d.retcode === 0) msgs.push(`✅签到成功`);
-    else msgs.push(`⚠️签到：${d.retmsg || '失败'}`);
+    let signSt = d.retcode === 0 ? '✅' : `⚠️${sMsg(d.retmsg)}`;
 
     let vCount = 0, vEarn = 0, vFail = '';
     for (let i = 1; i <= MAX_VIDEO; i++) {
@@ -157,18 +165,20 @@ async function runAccount(acc, index, total) {
         break;
       }
     }
-    if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount}次)`);
-    if (vFail) msgs.push(`⏸视频中断`);
-
+    
     res = await fetchApi('queryBalanceAndBonus');
     d = JSON.parse(res.body);
     let newBalance = d.retcode === 0 ? d.result.balance : '?';
-    msgs.unshift(`${tag} 💰${oldBalance}➔${newBalance}`);
+
+    msgs.push(`${tag} 💰${oldBalance}➔${newBalance}`);
+    msgs.push(signSt);
+    if (vCount > 0) msgs.push(`🎬+${vEarn.toFixed(3)}(${vCount})`);
+    if (vFail) msgs.push(`⏸${sMsg(vFail)}`);
 
   } catch (err) {
-    msgs.push(`❌异常`);
+    msgs.push(`${tag} ❌异常`);
   }
-  return msgs.join('\n');
+  return msgs.join(' ');
 }
 
 function MD5(string) {
