@@ -1,9 +1,6 @@
 /**
- * 电信话费流量监控 (兼容 Surge / Loon，支持插件参数)
- * 
- * Loon 插件参数示例：
- * argument = phone={手机号码}&pwd={服务密码}&silent=#
- * （silent=# 可选，加上后静默更新面板不弹通知）
+ * 电信话费流量监控 (兼容 Surge / Loon)
+ * Loon 插件参数示例：phone=真实号码&pwd=服务密码&silent=#
  */
 
 function getArgs() {
@@ -18,13 +15,18 @@ function getArgs() {
 }
 
 const args = getArgs();
-const phone = args.phone;
-const pwd = args.pwd;
+let phone = args.phone;
+let pwd = args.pwd;
 const isSilent = args.silent === "#";
 
-if (!phone || !pwd) {
-  const msg = "请在插件设置中填写 手机号码 和 服务密码";
-  if (!isSilent) $notification.post("电信营业厅", "❌ 缺少参数", msg);
+// 有效性检查：防止变量未替换或为空
+function isValidParam(val) {
+  return val && val.length > 0 && !val.includes("{") && !val.includes("}");
+}
+
+if (!isValidParam(phone) || !isValidParam(pwd)) {
+  const msg = "参数无效，请检查插件设置：确保已填写真实手机号和服务密码，并正确引用变量（使用 {phone} 而非 [{phone}]）";
+  if (!isSilent) $notification.post("电信营业厅", "❌ 参数错误", msg);
   $done({
     title: "电信营业厅",
     content: "❌ " + msg,
