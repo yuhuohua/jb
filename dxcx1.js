@@ -1,65 +1,94 @@
-const url = "https://api.iosxx.cn/dx.php?ChinaTelecom=17396213152*050116";
+function getArgs() {
+  if (typeof $argument === "undefined") return {};
+  let args = {};
+  let pairs = $argument.split("&");
+  for (let pair of pairs) {
+    let [key, val] = pair.split("=");
+    if (key) args[key] = val ? decodeURIComponent(val) : "";
+  }
+  return args;
+}
+
+const args = getArgs();
+const phone = args.phone || "";
+const pwd = args.pwd || "";
+const isSilent = args.silent === "#"; // 判断是否开启静默模式
+
+const url = `https://api.iosxx.cn/dx.php?ChinaTelecom=${phone}*${pwd}`;
 
 $httpClient.get(url, function(error, response, data) {
-  // 1. 处理网络请求错误
   if (error) {
     console.log("请求失败：" + error);
-    $notification.post("电信营业厅", "❌ 请求失败", "请检查网络\n" + error);
-    $done();
+    let errDesc = "请检查网络或接口状态";
+    if (!isSilent) {
+      $notification.post("电信营业厅", "❌ 请求失败", errDesc);
+    }
+    $done({
+      title: "电信营业厅",
+      content: "❌ 请求失败: " + errDesc,
+      icon: "simcard.fill",
+      "icon-color": "#FF3B30"
+    });
     return;
   }
 
-  // 2. 打印原始日志，方便在 Surge 的脚本日志中查看请求结果
   console.log("接口返回原始数据：\n" + data);
 
   try {
     let res = JSON.parse(data);
     
-    // 3. 校验数据格式是否符合预期
     if (res.status === "success" && res.results && res.results.length > 0) {
       let resultInfo = res.results[0];
       
       if (resultInfo.success && resultInfo.data) {
         let d = resultInfo.data;
         
-        // 提取所需的数据节点
-        let phone = d.masked_phonenum || d.phonenum || "未知号码";
+        let maskPhone = d.masked_phonenum || phone;
+        let suffix = maskPhone.length > 4 ? maskPhone.slice(-4) : maskPhone;
+        
         let balance = d.balance ? `${d.balance.amount} ${d.balance.unit}` : "未知";
-        let voice = d.voice ? `剩余 ${d.voice.balance} / 共 ${d.voice.total} ${d.voice.unit}` : "未知";
-        let totalFlow = d.total_flow ? `剩余 ${d.total_flow.balance} / 共 ${d.total_flow.total} ${d.total_flow.unit}` : "未知";
-        let commonFlow = d.common_flow ? `剩余 ${d.common_flow.balance} / 共 ${d.common_flow.total} ${d.common_flow.unit}` : "未知";
+        let voice = d.voice ? `${d.voice.balance}/${d.voice.total} ${d.voice.unit}` : "未知";
+        let totalFlow = d.total_flow ? `${d.total_flow.balance}/${d.total_flow.total} ${d.total_flow.unit}` : "未知";
+        let commonFlow = d.common_flow ? `${d.common_flow.balance} ${d.common_flow.unit}` : "未知";
         
-        // 拼接弹窗标题和副标题
-        let title = "电信营业厅";
-        let subtitle = `📱 尾号 ${phone.slice(-4)} | 💰 话费：${balance}`;
+        let title = `电信营业厅 (尾号${suffix})`;
+        let subtitle = `💰 话费余额: ${balance}`;
         
-        // 拼接弹窗主体内容
-        let detail = `📞 语音：${voice}\n` +
-                     `📶 总流量：${totalFlow}\n` +
-                     `🌐 通用流量：${commonFlow}`;
+        let detail = `📶 总流量: 剩余 ${totalFlow}\n` +
+                     `🌐 通用: 剩余 ${commonFlow} | 📞 语音: 剩余 ${voice}`;
                      
-        // 如果有定向流量，则追加显示
         if (d.special_flow) {
-            detail += `\n📺 定向流量：剩余 ${d.special_flow.balance} / 共 ${d.special_flow.total} ${d.special_flow.unit}`;
+            detail += `\n📺 定向: 剩余 ${d.special_flow.balance} ${d.special_flow.unit}`;
         }
         
-        // 发送通知
-        $notification.post(title, subtitle, detail);
-        console.log("✅ 解析并推送成功！");
+        if (!isSilent) {
+            $notification.post(title, subtitle, detail);
+        }
+        
+        console.log("✅ 数据解析成功！" + (isSilent ? " [静默模式：仅更新面板]" : " [正常通知：已发送弹窗]"));
+        
+        $done({
+          title: title,
+          subtitle: subtitle,
+          content: detail,
+          icon: "simcard.fill",
+          "icon-color": "#0066cc"
+        });
         
       } else {
-        console.log("接口数据状态异常：" + JSON.stringify(resultInfo));
-        $notification.post("电信营业厅", "⚠️ 查询异常", resultInfo.error || "未在 results 中获取到有效 data");
+        let errMsg = resultInfo.error || "未获取到有效数据";
+        console.log("接口数据状态异常：" + errMsg);
+        if (!isSilent) $notification.post("电信营业厅", "⚠️ 查询异常", errMsg);
+        $done({ title: "电信营业厅", content: "⚠️ 查询异常: " + errMsg, icon: "simcard.fill", "icon-color": "#FFCC00" });
       }
     } else {
-      console.log("接口结构不匹配：" + data);
-      $notification.post("电信营业厅", "⚠️ 解析失败", "接口状态非 success 或缺少 results 数组");
+      console.log("接口返回状态异常");
+      if (!isSilent) $notification.post("电信营业厅", "⚠️ 解析失败", "接口状态非 success");
+      $done({ title: "电信营业厅", content: "⚠️ 解析失败: 接口状态非 success", icon: "simcard.fill", "icon-color": "#FFCC00" });
     }
   } catch (e) {
-    // 捕获 JSON 解析错误
-    console.log("JSON解析或执行错误：" + e);
-    $notification.post("电信营业厅", "❌ 脚本执行出错", e.message);
+    console.log("JSON解析或脚本执行错误：" + e);
+    if (!isSilent) $notification.post("电信營業厅", "❌ 脚本错误", e.message);
+    $done({ title: "电信营业厅", content: "❌ 脚本错误: " + e.message, icon: "simcard.fill", "icon-color": "#FF3B30" });
   }
-  
-  $done();
 });
