@@ -1,3 +1,6 @@
+/**
+ * 接口由贰月红大佬提供，感谢贰月红大佬
+ */
 let isSilent = false;
 let accounts = [];
 
