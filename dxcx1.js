@@ -16,10 +16,6 @@ if (arg) {
     isSilent = silentVal === '#' || silentVal === 'true' || silentVal === true || silentVal === '1' || silentVal === 1;
   } else if (typeof arg === 'string') {
     const trimmedArg = arg.trim();
-    
-    if (trimmedArg.includes('#') || trimmedArg.toLowerCase().includes('true') || trimmedArg.toLowerCase().includes('silent')) {
-      isSilent = true;
-    }
 
     if (trimmedArg.startsWith('[')) {
       try {
@@ -35,15 +31,29 @@ if (arg) {
         parts.forEach(part => {
           const [k, v] = part.split('=');
           if (k && v) {
-            if (k.trim() === 'phone' || k.trim() === 'account') phone = v.trim();
-            if (k.trim() === 'pwd' || k.trim() === 'password') pwd = v.trim();
+            const keyName = k.trim().toLowerCase();
+            const valName = v.trim().toLowerCase();
+            if (keyName === 'phone' || keyName === 'account') phone = v.trim();
+            if (keyName === 'pwd' || keyName === 'password') pwd = v.trim();
+            if (keyName === 'silent' && (valName === '1' || valName === '#' || valName === 'true')) {
+              isSilent = true;
+            }
           }
         });
+        
+        if (trimmedArg.includes('#')) isSilent = true;
+
       } else {
+        if (trimmedArg.includes('#') || trimmedArg.toLowerCase().includes('true')) {
+          isSilent = true;
+        }
         const cleanArg = trimmedArg.replace('#', '').trim();
         const parts = cleanArg.split(/\s+/);
         phone = parts[0] || '';
         pwd = parts[1] || '';
+        if (parts[2] === '1' || parts[2] === 'true') {
+          isSilent = true;
+        }
       }
     }
   }
@@ -53,6 +63,9 @@ if (!phone || !pwd) {
   if (!isSilent) $notification.post("电信营业厅", "❌ 配置错误", "未获取到手机号码或服务密码");
   $done({ title: "电信营业厅", content: "❌ 配置错误: 请检查插件参数", icon: "simcard.fill", "icon-color": "#FF3B30" });
 }
+
+if (phone.includes('=')) phone = phone.split('=')[1] || phone;
+if (pwd.includes('=')) pwd = pwd.split('=')[1] || pwd;
 
 const url = `https://api.iosxx.cn/dx.php?ChinaTelecom=${phone.trim()}*${pwd.trim()}`;
 console.log(`🚀 电信查询开始，正在请求接口...`);
