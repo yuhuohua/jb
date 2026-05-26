@@ -1,5 +1,151 @@
 /**
  * 接口由贰月红大佬提供
  */
+let phone = '';
+let pwd = '';
+let isSilent = false;
 
-const a0_0x33c813=a0_0x1953;(function(_0x35f488,_0x4f48b5){const _0x559e8b=a0_0x1953,_0x35f753=_0x35f488();while(!![]){try{const _0x306035=parseInt(_0x559e8b(0xce))/0x1*(parseInt(_0x559e8b(0xcf))/0x2)+parseInt(_0x559e8b(0xd0))/0x3*(parseInt(_0x559e8b(0xd1))/0x4)+parseInt(_0x559e8b(0xd2))/0x5*(parseInt(_0x559e8b(0xd3))/0x6)+parseInt(_0x559e8b(0xd4))/0x7*(parseInt(_0x559e8b(0xd5))/0x8)+parseInt(_0x559e8b(0xd7))/0x9*(parseInt(_0x559e8b(0xd8))/0xa)+parseInt(_0x559e8b(0xd9))/0xb*(parseInt(_0x559e8b(0xda))/0xc)+parseInt(_0x559e8b(0xdb))/0xd*(-parseInt(_0x559e8b(0xdc))/0xe);if(_0x306035===_0x4f48b5)break;else _0x35f753['push'](_0x35f753['shift']());}catch(_0x3c4d29){_0x35f753['push'](_0x35f753['shift']());}}}(a0_0x2f75,0xb201a));function getArgs(){const _0x4a7d9f=a0_0x1953;if(typeof $argument===_0x4a7d9f(0xdd))return{};let _0x1953d2={},_0x24820f=$argument[_0x4a7d9f(0xde)]('\x26');for(let _0xe2595d of _0x24820f){let [_0x2f758f,_0x88e776]=_0xe2595d[_0x4a7d9f(0xde)]('\x3d');if(_0x2f758f)_0x1953d2[_0x2f758f]=_0x88e776?decodeURIComponent(_0x88e776):'';}return _0x1953d2;}const args=getArgs(),phone=args[a0_0x33c813(0xdf)]||'',pwd=args[a0_0x33c813(0xe1)]||'',isSilent=args[a0_0x33c813(0xd6)]==='\x23',url=a0_0x33c813(0xe0)+phone+'\x2a'+pwd;function a0_0x1953(_0x566798,_0x3d1637){const _0x312c3d=a0_0x2f75();return a0_0x1953=function(_0x4a7d9f,_0x5bfeb7){_0x4a7d9f=_0x4a7d9f-0xce;let _0x42ad55=_0x312c3d[_0x4a7d9f];return _0x42ad55;},a0_0x1953(_0x566798,_0x3d1637);}function a0_0x2f75(){const _0x3fb20c=['\x31\x34\x32\x37\x36\x39\x32\x44\x44\x44\x44\x44\x44','\x75\x6e\x64\x65\x66\x69\x6e\x65\x64','\x73\x70\x6c\x69\x74','\x70\x68\x6f\x6e\x65','\x68\x74\x74\x70\x73\x3a\x2f\x2f\x61\x70\x69\x2e\x69\x6f\x73\x78\x78\x2e\x63\x6e\x2f\x64\x78\x2e\x70\x68\x70\x3f\x43\x68\x69\x6e\x61\x54\x65\x6c\x65\x63\x6f\x6d\x3d','\x70\x77\x64','\x31\x30\x4b\x4b\x4b\x4b\x4b\x4b','\x31\x31\x36\x30\x38\x34\x4b\x4b\x4b\x4b\x4b\x4b','\x33\x30\x4b\x4b\x4b\x4b\x4b\x4b','\x32\x33\x32\x31\x36\x38\x4b\x4b\x4b\x4b\x4b\x4b','\x35\x30\x4b\x4b\x4b\x4b\x4b\x4b','\x33\x34\x38\x32\x35\x32\x4b\x4b\x4b\x4b\x44\x44','\x37\x30\x44\x44\x44\x44\x44\x44','\x34\x36\x34\x33\x33\x36\x44\x44\x44\x44\x44\x44','\x73\x69\x6c\x65\x6e\x74','\x39\x30\x44\x44\x44\x44\x44\x44','\x35\x38\x30\x34\x32\x30\x44\x44\x44\x44\x44\x44','\x31\x31\x30\x44\x44\x44\x44\x44\x44','\x36\x39\x36\x35\x30\x34\x44\x44\x44\x44\x44\x44','\x33\x35\x31\x44\x44\x44\x44\x44\x44'];a0_0x2f75=function(){return _0x3fb20c;};return a0_0x2f75();}$httpClient['\x67\x65\x74'](url,function(_0x1eeaf1,_0x274d9e,_0x1c1f61){if(_0x1eeaf1){console['\x6c\x6f\x67']('\u8bf7\u6c42\u5931\u8d25\uff1a'+_0x1eeaf1);let _0x5c2e83='\u8bf7\u68c0\u67e5\u7f51\u7edc\u6216\u63a5\u53e3\u72b6\u6001';!isSilent&&$notification['\x70\x6f\x73\x74']('\u7535\u4fe1\u8425\u4e1a\u5385','\u274c\x20\u8bf7\u6c42\u5931\u8d25',_0x5c2e83);$done({'\x74\x69\x74\x6c\x65':'\u7535\u4fe1\u8425\u4e1a\u5385','\x63\x6f\x6e\x74\x65\x6e\x74':'\u274c\x20\u8bf7\u6c42\u5931\u8d25\x3a\x20'+_0x5c2e83,'\x69\x63\x6f\x6e':'\x73\x69\x6d\x63\x61\x72\x64\x2e\x66\x69\x6c\x6c','\x69\x63\x6f\x6e\x2d\x63\x6f\x6c\x6f\x72':'\x23\x46\x46\x33\x42\x33\x30'});return;}console['\x6c\x6f\x67']('\u63a5\u53e3\u8fd4\u56de\u539f\u59cb\u6570\u636e\uff1a\x0a'+_0x1c1f61);try{let _0xb5a06a=JSON['\x70\x61\x72\x73\x65'](_0x1c1f61);if(_0xb5a06a['\x73\x74\x61\x74\x75\x73']==='\x73\x75\x63\x63\x65\x73\x73'&&_0xb5a06a['\x72\x65\x73\x75\x6c\x74\x73']&&_0xb5a06a['\x72\x65\x73\x75\x6c\x74\x73']['\x6c\x65\x6e\x67\x74\x68']>0x0){let _0x21b680=_0xb5a06a['\x72\x65\x73\x75\x6c\x74\x73'][0x0];if(_0x21b680['\x73\x75\x63\x63\x65\x73\x73']&&_0x21b680['\x64\x61\x74\x61']){let _0x10dc78=_0x21b680['\x64\x61\x74\x61'],_0x2732fc=_0x10dc78['\x6d\x61\x73\x6b\x65\x64\x5f\x70\x68\x6f\x6e\x65\x6e\x75\x6d']||phone,_0x476d44=_0x2732fc['\x6c\x65\x6e\x67\x74\x68']>0x4?_0x2732fc['\x73\x6c\x69\x63\x65'](-0x4):_0x2732fc,_0x312972=_0x10dc78['\x62\x61\x6c\x61\x6e\x63\x65']?_0x10dc78['\x62\x61\x6c\x61\x6e\x63\x65']['\x61\x6d\x6f\x75\x6e\x74']+'\x20'+_0x10dc78['\x62\x61\x6c\x61\x6e\x63\x65']['\x75\x6e\x69\x74']:'\u672a\u77e5',_0x1060cd=_0x10dc78['\x76\x6f\x69\x63\x65']?_0x10dc78['\x76\x6f\x69\x63\x65']['\x62\x61\x6c\x61\x6e\x63\x65']+'\x2f'+_0x10dc78['\x76\x6f\x69\x63\x65']['\x74\x6f\x74\x61\x6c']+'\x20'+_0x10dc78['\x76\x6f\x69\x63\x65']['\x75\x6e\x69\x74']:'\u672a\u77e5',_0x1dcb01=_0x10dc78['\x74\x6f\x74\x61\x6c\x5f\x66\x6c\x6f\x77']?_0x10dc78['\x74\x6f\x74\x61\x6c\x5f\x66\x6c\x6f\x77']['\x62\x61\x6c\x61\x6e\x63\x65']+'\x2f'+_0x10dc78['\x74\x6f\x74\x61\x6c\x5f\x66\x6c\x6f\x77']['\x74\x6f\x74\x61\x6c']+'\x20'+_0x10dc78['\x74\x6f\x74\x61\x6c\x5f\x66\x6c\x6f\x77']['\x75\x6e\x69\x74']:'\u672a\u77e5',_0x4799f7=_0x10dc78['\x63\x6f\x6d\x6d\x6f\x6e\x5f\x66\x6c\x6f\x77']?_0x10dc78['\x63\x6f\x6d\x6d\x6f\x6e\x5f\x66\x6c\x6f\x77']['\x62\x61\x6c\x61\x6e\x63\x65']+'\x20'+_0x10dc78['\x63\x6f\x6d\x6d\x6f\x6e\x5f\x66\x6c\x6f\x77']['\x75\x6e\x69\x74']:'\u672a\u77e5',_0x312c3d='\u7535\u4fe1\u8425\u4e1a\u5385\x20\x28\u5c3e\u53f7'+_0x476d44+'\x29',_0x3d1637='\ud83d\udcb0\x20\u8bdd\u8d39\u4f59\u989d\x3a\x20'+_0x312972,_0x566ac3='\ud83d\udcf6\x20\u603b\u6d41\u91cf\x3a\x20\u5269\u4f59\x20'+_0x1dcb01+'\x0a'+('\ud83c\udf10\x20\u901a\u7528\x3a\x20\u5269\u4f59\x20'+_0x4799f7+'\x20\x7c\x20\ud83d\udcde\x20\u8bed\u97f3\x3a\x20\u5269\u4f59\x20'+_0x1060cd);_0x10dc78['\x73\x70\x65\x63\x69\x61\x6c\x5f\x66\x6c\x6f\x77']&&(_0x566ac3+='\x0a\ud83d\udcfa\x20\u5b9a\u5411\x3a\x20\u5269\u4f59\x20'+_0x10dc78['\x73\x70\x65\x63\x69\x61\x6c\x5f\x66\x6c\x6f\x77']['\x62\x61\x6c\x61\x6e\x63\x65']+'\x20'+_0x10dc78['\x73\x70\x65\x63\x69\x61\x6c\x5f\x66\x6c\x6f\x77']['\x75\x6e\x69\x74']),!isSilent&&$notification['\x70\x6f\x73\x74'](_0x312c3d,_0x3d1637,_0x566ac3),console['\x6c\x6f\x67']('\u2705\x20\u6570\u636e\u89e3\u6790\u6210\u529f\uff01'+(isSilent?'\x20\x5b\u9759\u9ed8\u6a21\u5f0f\uff1a\u4ec5\u66f4\u65b0\u9762\u677f\x5d':'\x20\x5b\u6b63\u5e38\u901a\u77e5\uff1a\u5df2\u53d1\u9001\u5f39\u7a97\x5d')),$done({'\x74\x69\x74\x6c\x65':_0x312c3d,'\x73\x75\x62\x74\x69\x74\x6c\x65':_0x3d1637,'\x63\x6f\x6e\x74\x65\x6e\x74':_0x566ac3,'\x69\x63\x6f\x6e':'\x73\x69\x6d\x63\x61\x72\x64\x2e\x66\x69\x6c\x6c','\x69\x63\x6f\x6e\x2d\x63\x6f\x6c\x6f\x72':'\x23\x30\x30\x36\x36\x63\x63'});}else{let _0x3d136c=_0x21b680['\x65\x72\x72\x6f\x72']||'\u672a\u83b7\u53d6\u5230\u6709\u6548\u6570\u636e';console['\x6c\x6f\x67']('\u63a5\u53e3\u6570\u636e\u72b6\u6001\u5f02\u5e38\uff1a'+_0x3d136c);if(!isSilent)$notification['\x70\x6f\x73\x74']('\u7535\u4fe1\u8425\u4e1a\u5385','\u26a0\ufe0f\x20\u67e5\u8be2\u5f02\u5e38',_0x3d136c);$done({'\x74\x69\x74\x6c\x65':'\u7535\u4fe1\u8425\u4e1a\u5385','\x63\x6f\x6e\x74\x65\x6e\x74':'\u26a0\ufe0f\x20\u67e5\u8be2\u5f02\u5e38\x3a\x20'+_0x3d136c,'\x69\x63\x6f\x6e':'\x73\x69\x6d\x63\x61\x72\x64\x2e\x66\x69\x6c\x6c','\x69\x63\x6f\x6e\x2d\x63\x6f\x6c\x6f\x72':'\x23\x46\x46\x43\x43\x30\x30'});}}else{console['\x6c\x6f\x67']('\u63a5\u53e3\u8fd4\u56de\u72b6\u6001\u5f02\u5e38');if(!isSilent)$notification['\x70\x6f\x73\x74']('\u7535\u4fe1\u8425\u4e1a\u5385','\u26a0\ufe0f\x20\u89e3\u6790\u5931\u8d25','\u63a5\u53e3\u72b6\u6001\u975e\x20\x73\x75\x63\x63\x65\x73\x73');$done({'\x74\x69\x74\x6c\x65':'\u7535\u4fe1\u8425\u4e1a\u5385','\x63\x6f\x6e\x74\x65\x6e\x74':'\u26a0\ufe0f\x20\u89e3\u6790\u5931\u8d25\x3a\x20\u63a5\u53e3\u72b6\u6001\u975e\x20\x73\x75\x63\x63\x65\x73\x73','\x69\x63\x6f\x6e':'\x73\x69\x6d\x63\x61\x72\x64\x2e\x66\x69\x6c\x6c','\x69\x63\x6f\x6e\x2d\x63\x6f\x6c\x6f\x72':'\x23\x46\x46\x43\x43\x30\x30'});}}catch(_0x42aa8a){console['\x6c\x6f\x67']('\x4a\x53\x4f\x4e\u89e3\u6790\u6216\u811a\u672c\u6267\u884c\u9519\u8bef\uff1a'+_0x42aa8a);if(!isSilent)$notification['\x70\x6f\x73\x74']('\u7535\u4fe1\u71df\u696d\u5385','\u274c\x20\u811a\u672c\u9519\u8bef',_0x42aa8a['\x6d\x65\x73\x73\x61\x67\x65']);$done({'\x74\x69\x74\x6c\x65':'\u7535\u4fe1\u8425\u4e1a\u5385','\x63\x6f\x6e\x74\x65\x6e\x74':'\u274c\x20\u811a\u672c\u9519\u8bef\x3a\x20'+_0x42aa8a['\x6d\x65\x73\x73\x61\x67\x65'],'\x69\x63\x6f\x6e':'\x73\x69\x6d\x63\x61\x72\x64\x2e\x66\x69\x6c\x6c','\x69\x63\x6f\x6e\x2d\x63\x6f\x6c\x6f\x72':'\x23\x46\x46\x33\x42\x33\x30'});}});
+const arg = typeof $argument !== 'undefined' ? $argument : '';
+
+if (arg) {
+  if (Array.isArray(arg)) {
+    phone = arg[0] || '';
+    pwd = arg[1] || '';
+    isSilent = arg[2] === '#' || arg[2] === 'true' || arg[2] === true || arg[2] === '1' || arg[2] === 1;
+  } else if (typeof arg === 'object') {
+    phone = arg.phone || arg['手机号码'] || '';
+    pwd = arg.pwd || arg['服务密码'] || '';
+    let silentVal = arg.silent || arg['静默运行'] || '';
+    isSilent = silentVal === '#' || silentVal === 'true' || silentVal === true || silentVal === '1' || silentVal === 1;
+  } else if (typeof arg === 'string') {
+    const trimmedArg = arg.trim();
+
+    if (trimmedArg.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmedArg);
+        phone = arr[0] || '';
+        pwd = arr[1] || '';
+      } catch (e) {
+        console.log(`❌ JSON 解析失败: ${e.message}`);
+      }
+    } else {
+      if (trimmedArg.includes('&')) {
+        const parts = trimmedArg.split('&');
+        parts.forEach(part => {
+          const [k, v] = part.split('=');
+          if (k && v) {
+            const keyName = k.trim().toLowerCase();
+            const valName = v.trim().toLowerCase();
+            if (keyName === 'phone' || keyName === 'account') phone = v.trim();
+            if (keyName === 'pwd' || keyName === 'password') pwd = v.trim();
+            if (keyName === 'silent' && (valName === '1' || valName === '#' || valName === 'true')) {
+              isSilent = true;
+            }
+          }
+        });
+        
+        if (trimmedArg.includes('#')) isSilent = true;
+
+      } else {
+        if (trimmedArg.includes('#') || trimmedArg.toLowerCase().includes('true')) {
+          isSilent = true;
+        }
+        const cleanArg = trimmedArg.replace('#', '').trim();
+        const parts = cleanArg.split(/\s+/);
+        phone = parts[0] || '';
+        pwd = parts[1] || '';
+        if (parts[2] === '1' || parts[2] === 'true') {
+          isSilent = true;
+        }
+      }
+    }
+  }
+}
+
+if (!phone || !pwd) {
+  if (!isSilent) $notification.post("电信营业厅", "❌ 配置错误", "未获取到手机号码或服务密码");
+  $done({ title: "电信营业厅", content: "❌ 配置错误: 请检查插件参数", icon: "simcard.fill", "icon-color": "#FF3B30" });
+}
+
+if (phone.includes('=')) phone = phone.split('=')[1] || phone;
+if (pwd.includes('=')) pwd = pwd.split('=')[1] || pwd;
+
+const url = `https://api.iosxx.cn/dx.php?ChinaTelecom=${phone.trim()}*${pwd.trim()}`;
+console.log(`🚀 电信查询开始，正在请求接口...`);
+console.log(`💡 当前运行模式: ${isSilent ? '🤫 静默模式' : '🔔 通知模式'}`);
+
+$httpClient.get(url, function(error, response, data) {
+  if (error) {
+    console.log("请求失败：" + error);
+    let errDesc = "请检查网络或接口状态";
+    if (!isSilent) {
+      $notification.post("电信营业厅", "❌ 请求失败", errDesc);
+    }
+    $done({
+      title: "电信营业厅",
+      content: "❌ 请求失败: " + errDesc,
+      icon: "simcard.fill",
+      "icon-color": "#FF3B30"
+    });
+    return;
+  }
+
+  console.log("接口返回原始数据：\n" + data);
+
+  try {
+    let res = JSON.parse(data);
+    
+    if (res.status === "success" && res.results && res.results.length > 0) {
+      let resultInfo = res.results[0];
+      
+      if (resultInfo.success && resultInfo.data) {
+        let d = resultInfo.data;
+        
+        let maskPhone = d.masked_phonenum || phone;
+        let suffix = maskPhone.length > 4 ? maskPhone.slice(-4) : maskPhone;
+        
+        let balance = d.balance ? `${d.balance.amount} ${d.balance.unit}` : "未知";
+        let voice = d.voice ? `${d.voice.balance}/${d.voice.total} ${d.voice.unit}` : "未知";
+        let totalFlow = d.total_flow ? `${d.total_flow.balance}/${d.total_flow.total} ${d.total_flow.unit}` : "未知";
+        let commonFlow = d.common_flow ? `${d.common_flow.balance} ${d.common_flow.unit}` : "未知";
+        
+        let title = `电信营业厅 (尾号${suffix})`;
+        let subtitle = `💰 话费余额: ${balance}`;
+        
+        let detail = `📶 总流量: 剩余 ${totalFlow}\n` +
+                     `🌐 通用: 剩余 ${commonFlow} |\n` +
+                     `📞 语音: 剩余 ${voice}`;
+                     
+        if (d.special_flow) {
+            detail += `\n📺 定向: 剩余 ${d.special_flow.balance} ${d.special_flow.unit}`;
+        }
+        
+        if (!isSilent) {
+            $notification.post(title, subtitle, detail);
+        }
+        
+        console.log("✅ 数据解析成功！" + (isSilent ? " [静默模式：仅更新面板]" : " [正常通知：已发送弹窗]"));
+        $done({
+          title: title,
+          subtitle: subtitle,
+          content: detail,
+          icon: "simcard.fill",
+          "icon-color": "#0066cc"
+        });
+      } else {
+        let errMsg = resultInfo.error || "未获取到有效数据";
+        console.log("接口数据状态异常：" + errMsg);
+        if (!isSilent) $notification.post("电信营业厅", "⚠️ 查询异常", errMsg);
+        $done({ title: "电信营业厅", content: "⚠️ 查询异常: " + errMsg, icon: "simcard.fill", "icon-color": "#FFCC00" });
+      }
+    } else {
+      console.log("接口返回状态异常");
+      if (!isSilent) $notification.post("电信营业厅", "⚠️ 解析失败", "接口状态非 success");
+      $done({ title: "电信营业厅", content: "⚠️ 解析失败: 接口状态非 success", icon: "simcard.fill", "icon-color": "#FFCC00" });
+    }
+  } catch (e) {
+    console.log("JSON解析或脚本执行错误：" + e);
+    if (!isSilent) $notification.post("电信营业厅", "❌ 脚本错误", e.message);
+    $done({ title: "电信营业厅", content: "❌ 脚本错误: " + e.message, icon: "simcard.fill", "icon-color": "#FF3B30" });
+  }
+});
