@@ -1,7 +1,10 @@
 /**
  * 接口由贰月红大佬提供
  */
+
+let isSilent = false;
 let accounts = [];
+
 
 const arg = typeof $argument !== 'undefined' ? $argument : '';
 
@@ -54,7 +57,7 @@ if (accounts.length === 0) {
       const acc = accounts[i];
       console.log(`  ↳ 查询尾号 ${acc.phone.slice(-4)} ...`);
       try {
-        const info = await querySingleAccount(acc.phone, acc.pwd, true);
+        const info = await querySingleAccount(acc.phone, acc.pwd, true); // 静默，不弹通知
         lines.push(`📱 尾号${info.suffix}: ${info.summary}`);
       } catch (err) {
         lines.push(`📱 尾号${acc.phone.slice(-4)}: ❌ ${err.message}`);
@@ -99,7 +102,8 @@ if (accounts.length === 0) {
     $done();
   }
 })();
- silent) {
+
+function querySingleAccount(phone, pwd, silent) {
   const url = `https://api.iosxx.cn/dx.php?ChinaTelecom=${phone}*${pwd}`;
 
   return new Promise((resolve, reject) => {
