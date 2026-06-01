@@ -39,7 +39,7 @@ const $ = new Env("🏥 众安健康");
     } catch (e) {
       console.log(`❌ [账号 ${accountIdx}] 异常: ${e.message || e}`);
     }
-    if (i < tokens.length - 1) await $.wait(Math.floor(Math.random() * 2000) + 1000);
+    if (i < tokens.length - 1) await $.wait(Math.floor(Math.random() * 3000) + 5000);
   }
 
   $.done();
@@ -50,7 +50,7 @@ function runTask(token, idx, threshold) {
     const url = `https://api.iosxx.cn/zajkcx.php?token=${token}`;
     const headers = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" };
 
-    $.get({ url, headers, timeout: 15000 }, (err, resp, data) => {
+    $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       let notifyMsg = "";
       if (err) {
         notifyMsg = `📡 网络请求失败`;
@@ -70,6 +70,8 @@ function runTask(token, idx, threshold) {
       let amount = 0;
       const amountMatch = notifyMsg.match(/(?:金额|奖金)[:：]\s*([\d.]+)/);
       if (amountMatch) amount = parseFloat(amountMatch[1]);
+
+      console.log(`\n===== 🏥 [账号 ${idx}] 运行结果 =====\n${notifyMsg}\n==================================\n`);
 
       if (amount >= threshold) {
         $.msg(`${$.name} [账号 ${idx}]`, `💎 可提现金额: ${amount} 元`, `✨ 达标啦！\n${notifyMsg}`);
