@@ -7,6 +7,7 @@ $.get({ url: url }, (error, response, data) => {
     } else {
         const lines = data.split('\n');
         let availableItems = [];
+        let currentNamesArr = [];
 
         lines.forEach(line => {
             if (line.includes("现金") && line.includes("✅")) {
@@ -17,10 +18,14 @@ $.get({ url: url }, (error, response, data) => {
                     const name = nameMatch[1].trim();
                     const stock = stockMatch[1];
                     availableItems.push(`${name} (余 ${stock})`);
+                    currentNamesArr.push(name);
                 }
             }
         });
 
+        const dateKey = "lz_stock_date";
+        const countKey = "lz_stock_notify_count";
+        const lastItemsKey = "lz_last_items";
         if (availableItems.length > 0) {
             const msg = `发现现金有货：\n${availableItems.join("\n")}`;
             
@@ -28,31 +33,42 @@ $.get({ url: url }, (error, response, data) => {
             now.setHours(now.getHours() + (now.getTimezoneOffset() / 60) + 8); 
             const today = now.toISOString().split('T')[0];
             
-            const dateKey = "lz_stock_date";
-            const countKey = "lz_stock_notify_count";
-            
             let savedDate = $.getdata(dateKey);
             let notifyCount = parseInt($.getdata(countKey) || "0");
+            
+            let lastItemsString = $.getdata(lastItemsKey) || "";
+            let lastNamesArr = lastItemsString ? lastItemsString.split(",") : [];
 
             if (savedDate !== today) {
                 savedDate = today;
                 notifyCount = 0;
+                lastNamesArr = [];
                 $.setdata(savedDate, dateKey);
             }
 
-            if (notifyCount < 2) {
+            let hasNewItem = currentNamesArr.some(name => !lastNamesArr.includes(name));
+
+            if (hasNewItem) {
+                console.log("👀 检测到有新的商品上架（或重新上架），重置弹窗次数！");
+                notifyCount = 0; 
+            }
+
+            $.setdata(currentNamesArr.join(","), lastItemsKey);
+
+            if (notifyCount < 1) {
                 $.notify("💰 乐仔补货啦！", "", msg);
                 notifyCount++;
                 $.setdata(notifyCount.toString(), countKey);
                 console.log(msg);
-                console.log(`🔔 今日已弹窗通知 ${notifyCount} 次（每日上限2次）`);
+                console.log(`🔔 今日已弹窗通知 ${notifyCount} 次（当前商品状态）`);
             } else {
-                console.log(`🤫 有货，但今日弹窗已达2次上限，停止弹窗打扰。`);
+                console.log(`🤫 仍是这些商品有货，当前状态今日弹窗已达1次，停止打扰。`);
                 console.log(msg); 
             }
             
         } else {
             console.log("😴 巡检完成：目前所有现金类商品均无货。");
+            $.setdata("", "lz_last_items");
         }
     }
     $.done();
