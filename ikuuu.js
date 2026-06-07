@@ -51,13 +51,23 @@ if (!account || !account.includes(':')) {
   notifyAndLog('ikuuu 签到失败', '', '参数格式错误，请填写 邮箱:密码', true);
   $done();
 } else {
-  const [email, pwd] = account.split(':');
-  const url = `http://ikuuu.iosxx.cn/?ikuuu=${encodeURIComponent(email + '*' + pwd)}`;
+  const separatorIndex = account.indexOf(':');
+  const email = account.substring(0, separatorIndex);
+  const pwd = account.substring(separatorIndex + 1);
+  
+  const url = `http://ikuuu.iosxx.cn/?ikuuu=${email}*${pwd}`;
 
   console.log(`🚀 开始签到，正在请求接口...`);
   console.log(`💡 当前运行模式: ${silent ? '🤫 静默运行 (成功不弹窗，失败强制弹窗)' : '🔔 全通知运行'}`);
 
-  $httpClient.get(url, (error, response, data) => {
+  const requestOptions = {
+    url: url,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1'
+    }
+  };
+
+  $httpClient.get(requestOptions, (error, response, data) => {
     if (error) {
       notifyAndLog('ikuuu 签到失败', `📧 ${email}`, `网络错误: ${error}`, true);
       $done();
@@ -66,8 +76,9 @@ if (!account || !account.includes(':')) {
 
     const cleanData = data.replace(/\r/g, '');
     
+    // 核心修复：兼容新版的日志格式（兼容“流量:”和“剩余流量:”）
     const resultMatch = cleanData.match(/(?:结果[:：]|🎯\s*结果[:：])\s*(.+)/);
-    const trafficMatch = cleanData.match(/(?:剩余流量[:：]|📊\s*剩余流量[:：])\s*(.+)/);
+    const trafficMatch = cleanData.match(/(?:剩余流量[:：]|流量[:：]|📊\s*剩余流量[:：]|📊\s*流量[:：])\s*(.+)/);
 
     const resultLine = resultMatch ? resultMatch[1].trim() : '';
     const trafficLine = trafficMatch ? trafficMatch[1].trim() : '';
