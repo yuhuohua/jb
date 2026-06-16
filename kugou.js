@@ -3,15 +3,16 @@ const $ = new Env("🎵 酷狗金币数据");
 (async () => {
   let accounts = [];
   let count = 5;      
+  let showTodayPopup = true; 
   let showTotalPopup = true; 
   const arg = typeof $argument !== 'undefined' ? $argument : "";
-  
   const isPanel = typeof $script !== 'undefined' && $script.type === 'generic';
 
   if (arg) {
     if (typeof arg === 'object' && !Array.isArray(arg)) {
       if (arg.COUNT) count = parseInt(arg.COUNT) || 5;
-      if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH === "true" || arg.TOTAL_SWITCH === true;
+      if (arg.TODAY_SWITCH) showTodayPopup = arg.TODAY_SWITCH !== "#" && arg.TODAY_SWITCH !== "false";
+      if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH !== "#" && arg.TOTAL_SWITCH !== "false";
       for (let key in arg) {
         if (key.toUpperCase().startsWith("ACCOUNT") && arg[key]) {
           parseAccount(arg[key], accounts);
@@ -19,45 +20,37 @@ const $ = new Env("🎵 酷狗金币数据");
       }
     } else {
       let strArg = String(arg).trim();
-      if (strArg.startsWith('[') && strArg.endsWith(']')) {
-        strArg = strArg.slice(1, -1);
-      }
+      if (strArg.startsWith('[') && strArg.endsWith(']')) strArg = strArg.slice(1, -1);
       
       let rawArr = strArg.includes('@') ? strArg.split('@') : strArg.split(',');
-      rawArr = rawArr.map(v => v.trim()).filter(v => v && v !== "null" && v !== "undefined");
+      rawArr = rawArr.map(v => v.trim());
       
-      if (rawArr.length > 0 && !isNaN(rawArr[0])) {
-        count = parseInt(rawArr.shift()) || 5;
-      }
-      if (rawArr.length > 0 && (rawArr[0] === "" || rawArr[0] === "#")) {
-        showTotalPopup = rawArr.shift() === "";
+      let configParams = [];
+      while (rawArr.length > 0 && (rawArr[0] === "" || rawArr[0] === "#" || (!isNaN(rawArr[0]) && rawArr[0] !== ""))) {
+        configParams.push(rawArr.shift());
       }
       
+      if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
+      if (configParams.length > 1) showTodayPopup = configParams[1] !== "#";
+      if (configParams.length > 2) showTotalPopup = configParams[2] !== "#";
+      
+      rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
       rawArr.forEach(entry => parseAccount(entry, accounts));
     }
   }
 
   if (accounts.length === 0) {
-    if (isPanel) {
-      $done({ title: "🎵 酷狗金币数据", content: "❌ 未配置账号参数" });
-    } else {
-      $.msg($.name, "❌ 配置错误", "请按格式填写账号，如：标签&ck#UID");
-      $.done();
-    }
+    if (isPanel) $done({ title: "🎵 酷狗金币数据", content: "❌ 未配置账号参数" });
+    else { $.msg($.name, "❌ 配置错误", "请按格式填写账号"); $.done(); }
     return;
   }
 
-  console.log(`🎬 ${$.name} | 面板模式: ${isPanel} | 历史拉取数: ${count} | 汇总开关: ${showTotalPopup} | 账号数: ${accounts.length}`);
+  console.log(`🎬 ${$.name} | 面板模式: ${isPanel} | 明细数: ${count} | 今日开关: ${showTodayPopup} | 累计开关: ${showTotalPopup} | 账号数: ${accounts.length}`);
   
   let panelLines = [];
   let globalTotalWithdraw = 0;
   let todayTotalWithdraw = 0;
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${day}`;
+  const todayStr = new Date().toISOString().split('T')[0];
 
   for (let i = 0; i < accounts.length; i++) {
     try {
@@ -68,88 +61,62 @@ const $ = new Env("🎵 酷狗金币数据");
     } catch (e) {
       console.log(`❌ [账号：${accounts[i].label}] 异常: ${e.message || e}`);
     }
-    if (i < accounts.length - 1) await $.wait(Math.floor(Math.random() * 2000) + 1000);
+    if (i < accounts.length - 1) await $.wait(1500); // 防风控延迟
   }
 
   if (isPanel) {
     const panelContent = panelLines.join("\n") + 
                          `\n\n💰 今日提现总额：¥${todayTotalWithdraw.toFixed(2)}` +
                          `\n🏦 累计提现总额：¥${globalTotalWithdraw.toFixed(2)}`;
-    
-    $done({
-      title: "🎵 酷狗金币数据",
-      content: panelContent,
-      icon: "music.note.list",
-      "icon-color": "#108ee9"
-    });
+    $done({ title: "🎵 酷狗金币数据", content: panelContent, icon: "music.note.list", "icon-color": "#108ee9" });
   } else {
-    if (showTotalPopup && accounts.length > 0) {
-      $.msg(`${$.name} 汇总`, "✅ 所有账号查询结束", `💰 全部账号已提现总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
+    if (accounts.length > 0) {
+      if (showTodayPopup) {
+        await $.wait(500);
+        $.msg(`${$.name} 今日汇总`, "✅ 提现查询结束", `💰 全部账号今日提现总额：¥${todayTotalWithdraw.toFixed(2)}`);
+      }
+      if (showTotalPopup) {
+        await $.wait(500);
+        $.msg(`${$.name} 累计汇总`, "✅ 历史查询结束", `🏦 全部账号已提现总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
+      }
     }
     $.done();
   }
 })();
 
 function parseAccount(entry, arr) {
-  if (!entry || entry === "null" || entry === "undefined") return;
-  const str = String(entry).trim();
-  if (!str) return;
-  const idx = str.indexOf('&');
-  if (idx > 0) {
-    const label = str.substring(0, idx).trim();
-    const openid = str.substring(idx + 1).trim();
-    if (openid) arr.push({ label: label || "未命名", openid });
-  } else {
-    arr.push({ label: "未命名", openid: str });
-  }
+  if (!entry) return;
+  const idx = entry.indexOf('&');
+  if (idx > 0) arr.push({ label: entry.substring(0, idx).trim() || "未命名", openid: entry.substring(idx + 1).trim() });
+  else arr.push({ label: "未命名", openid: entry.trim() });
 }
 
 function checkBalance(acc, count, isPanel, panelLines, todayStr, accumulator) {
   const { label, openid } = acc;
   return new Promise((resolve) => {
     let safeOpenid = openid.replace(/#/g, '%23');
-    let queryStr = safeOpenid;
-    if (queryStr.includes('count=')) {
-      queryStr = queryStr.replace(/count=\d+/, `count=${count}`);
-    } else {
-      queryStr += `&count=${count}`;
-    }
+    let queryStr = safeOpenid.includes('count=') ? safeOpenid.replace(/count=\d+/, `count=${count}`) : `${safeOpenid}&count=${count}`;
     
     const url = `http://152.136.162.202/kugou/kgcx.php?ck=${queryStr}`;
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1"
-    };
+    const headers = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1" };
 
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data) {
-        console.log(`[账号：${label}] 请求失败: ${err || '无数据'}`);
-        if (isPanel) {
-            panelLines.push(`${label} ❌ 请求失败`);
-        } else {
-            $.msg($.name, `👤 账号: ${label}`, `❌ 请求失败，请检查网络或参数配置`);
-        }
+        if (isPanel) panelLines.push(`🔹 ${label} ❌ 请求失败`);
+        else $.msg($.name, `👤 账号: ${label}`, `❌ 请求失败，请检查网络或参数配置`);
         return resolve();
       }
 
-      console.log(`\n===== 🎵 [账号：${label}] 详细日志 =====`);
-      console.log(data);
-      console.log(`====================================\n`);
+      console.log(`\n===== 🎵 [账号：${label}] 详细日志 =====\n${data}\n====================================\n`);
 
-      let uid = "未知", curGold = "0", curMoney = "0.00", historyGold = "0", historyMoney = "0.00", cash = "0.00", totalWithdraw = "0.00", countWithdraw = "0";
-      
-      let mUid = data.match(/👤 账号:\s*(\d+)/); if(mUid) uid = mUid[1];
-      let mCur = data.match(/💰 当前金币(?:余额)?:\s*([\d,]+)\s*金币\s*\(.*?([\d\.]+).*?\)/); if(mCur) { curGold = mCur[1]; curMoney = mCur[2]; }
-      let mHis = data.match(/📈 历史获得总金币:\s*([\d,]+)\s*金币\s*\(.*?([\d\.]+).*?\)/); if(mHis) { historyGold = mHis[1]; historyMoney = mHis[2]; }
-      let mCash = data.match(/💵 现金余额:\s*¥?(.*?)(?=\n|$)/); if(mCash) cash = mCash[1].trim();
-      let mTw = data.match(/💸 已提现总额:\s*¥?(.*?)\s*\((.*?)笔\)/); if(mTw) { totalWithdraw = mTw[1].trim(); countWithdraw = mTw[2].trim(); }
-
-      if (!isPanel) {
-        let popupText = `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
-                        `📈 历史获得总金币: ${historyGold} 金币 (¥${historyMoney})\n` +
-                        `💵 现金余额: ¥${cash}\n` +
-                        `💸 已提现总额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
-        $.msg($.name, `👤 ${label}`, popupText);
-      }
+      let curGold = data.match(/💰 当前金币(?:余额)?:\s*([\d,]+)/)?.[1] || "0";
+      let curMoney = data.match(/约(.*?)元/)?.[1] || "0.00";
+      let historyGold = data.match(/📈 历史获得总金币:\s*([\d,]+)/)?.[1] || "0";
+      let historyMoney = data.match(/历史获得.*?约(.*?)元/)?.[1] || "0.00";
+      let cash = data.match(/💵 现金余额:\s*¥?(.*?)(?=\n|$)/)?.[1] || "0.00";
+      let mTw = data.match(/💸 已提现总额:\s*¥?(.*?)\s*\((.*?)笔\)/);
+      let totalWithdraw = mTw?.[1]?.trim() || "0.00";
+      let countWithdraw = mTw?.[2]?.trim() || "0";
 
       let accTotalWithdrawNum = parseFloat(totalWithdraw.replace(/,/g, '')) || 0;
       let accTodayWithdrawNum = 0;
@@ -157,30 +124,26 @@ function checkBalance(acc, count, isPanel, panelLines, todayStr, accumulator) {
       
       let splitStr = data.split(/💸 历史提现明细/);
       if (splitStr.length > 1) {
-        let lines = splitStr[1].split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        let todayLines = lines.filter(l => l.includes(todayStr));
-        
+        let todayLines = splitStr[1].split('\n').map(l => l.trim()).filter(l => l.includes(todayStr));
         if (todayLines.length > 0) {
-          let firstRecord = todayLines[0]; 
-          let moneyMatch = firstRecord.match(/¥\s*([\d\.]+)/) || firstRecord.match(/提现([\d\.]+)元/);
-          let recordMoneyStr = "¥0.00";
-          
+          let moneyMatch = todayLines[0].match(/¥\s*([\d\.]+)/) || todayLines[0].match(/提现([\d\.]+)元/);
           if (moneyMatch) {
-            let moneyNum = parseFloat(moneyMatch[1]) || 0;
-            accTodayWithdrawNum = moneyNum; 
-            recordMoneyStr = `¥${moneyNum.toFixed(2)}`;
+            accTodayWithdrawNum = parseFloat(moneyMatch[1]) || 0;
+            todayRecordStr = `${todayLines[0].match(/\d{2}:\d{2}/)?.[0] || ""} ¥${accTodayWithdrawNum.toFixed(2)}`.trim();
           }
-          
-          let timeMatch = firstRecord.match(/\d{2}:\d{2}/);
-          let timeStr = timeMatch ? timeMatch[0] : "";
-          
-          todayRecordStr = `${todayStr} ${timeStr}  ${recordMoneyStr}`.replace(/\s+/g, ' ');
         }
       }
 
-if (isPanel) {
-        panelLines.push(`👤 ${label} | ${todayRecordStr}`);
+      if (!isPanel) {
+        let popupText = `💰 今日提现金额: ¥${accTodayWithdrawNum.toFixed(2)}\n` +
+                        `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
+                        `📈 历史获得金币: ${historyGold} 金币 (¥${historyMoney})\n` +
+                        `💵 平台现金余额: ¥${cash}\n` +
+                        `💸 累计已提现额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
+        $.msg($.name, `👤 ${label}`, popupText);
       }
+
+      if (isPanel) panelLines.push(`🔹 ${label} | ${todayRecordStr}`);
       
       accumulator(accTotalWithdrawNum, accTodayWithdrawNum);
       resolve();
