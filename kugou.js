@@ -5,6 +5,7 @@ const $ = new Env("🎵 酷狗金币数据");
   let count = 5;      
   let showTodayPopup = true; 
   let showTotalPopup = true; 
+  let showAccountPopup = true; 
   const arg = typeof $argument !== 'undefined' ? $argument : "";
   const isPanel = typeof $script !== 'undefined' && $script.type === 'generic';
 
@@ -13,6 +14,7 @@ const $ = new Env("🎵 酷狗金币数据");
       if (arg.COUNT) count = parseInt(arg.COUNT) || 5;
       if (arg.TODAY_SWITCH) showTodayPopup = arg.TODAY_SWITCH !== "#" && arg.TODAY_SWITCH !== "false";
       if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH !== "#" && arg.TOTAL_SWITCH !== "false";
+      if (arg.ACCOUNT_SWITCH) showAccountPopup = arg.ACCOUNT_SWITCH !== "#" && arg.ACCOUNT_SWITCH !== "false";
       for (let key in arg) {
         if (key.toUpperCase().startsWith("ACCOUNT") && arg[key]) {
           parseAccount(arg[key], accounts);
@@ -33,6 +35,7 @@ const $ = new Env("🎵 酷狗金币数据");
       if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
       if (configParams.length > 1) showTodayPopup = configParams[1] !== "#";
       if (configParams.length > 2) showTotalPopup = configParams[2] !== "#";
+      if (configParams.length > 3) showAccountPopup = configParams[3] !== "#";
       
       rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
       rawArr.forEach(entry => parseAccount(entry, accounts));
@@ -45,23 +48,27 @@ const $ = new Env("🎵 酷狗金币数据");
     return;
   }
 
-  console.log(`🎬 ${$.name} | 面板模式: ${isPanel} | 明细数: ${count} | 今日开关: ${showTodayPopup} | 累计开关: ${showTotalPopup} | 账号数: ${accounts.length}`);
+  console.log(`🎬 ${$.name} | 面板模式: ${isPanel} | 明细数: ${count} | 账号开关: ${showAccountPopup} | 今日开关: ${showTodayPopup} | 累计开关: ${showTotalPopup} | 账号数: ${accounts.length}`);
   
   let panelLines = [];
   let globalTotalWithdraw = 0;
   let todayTotalWithdraw = 0;
+  let todayWithdrawDetails = [];
   const todayStr = new Date().toISOString().split('T')[0];
 
   for (let i = 0; i < accounts.length; i++) {
     try {
-      await checkBalance(accounts[i], count, isPanel, panelLines, todayStr, (gw, tw) => {
+      await checkBalance(accounts[i], i + 1, count, isPanel, showAccountPopup, panelLines, todayStr, (gw, tw) => {
         globalTotalWithdraw += gw;
         todayTotalWithdraw += tw;
+        if (tw > 0) {
+            todayWithdrawDetails.push({ idx: i + 1, amount: tw });
+        }
       });
     } catch (e) {
       console.log(`❌ [账号：${accounts[i].label}] 异常: ${e.message || e}`);
     }
-    if (i < accounts.length - 1) await $.wait(1500); // 防风控延迟
+    if (i < accounts.length - 1) await $.wait(1500); 
   }
 
   if (isPanel) {
@@ -73,8 +80,20 @@ const $ = new Env("🎵 酷狗金币数据");
     if (accounts.length > 0) {
       if (showTodayPopup) {
         await $.wait(500);
-        $.msg(`${$.name} 今日汇总`, "✅ 提现查询结束", `💰 全部账号今日提现总额：¥${todayTotalWithdraw.toFixed(2)}`);
+        let detailText = "";
+        if (todayWithdrawDetails.length > 0) {
+            detailText = "\n";
+            for (let i = 0; i < todayWithdrawDetails.length; i += 3) {
+                let row = todayWithdrawDetails.slice(i, i + 3).map(item => {
+                    let str = `${item.idx}: ¥${item.amount}`;
+                    return str.padEnd(10, ' ');
+                }).join("   "); 
+                detailText += row.trimEnd() + "\n";
+            }
+        }
+        $.msg(`${$.name} 今日汇总`, "✅ 今日提现查询结束", `💰 全部账号今日提现总额：¥${todayTotalWithdraw.toFixed(2)}${detailText}`);
       }
+      
       if (showTotalPopup) {
         await $.wait(500);
         $.msg(`${$.name} 累计汇总`, "✅ 历史查询结束", `🏦 全部账号已提现总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
@@ -91,7 +110,7 @@ function parseAccount(entry, arr) {
   else arr.push({ label: "未命名", openid: entry.trim() });
 }
 
-function checkBalance(acc, count, isPanel, panelLines, todayStr, accumulator) {
+function checkBalance(acc, index, count, isPanel, showAccountPopup, panelLines, todayStr, accumulator) {
   const { label, openid } = acc;
   return new Promise((resolve) => {
     let safeOpenid = openid.replace(/#/g, '%23');
@@ -101,13 +120,13 @@ function checkBalance(acc, count, isPanel, panelLines, todayStr, accumulator) {
     const headers = { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1" };
 
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
-      if (err || !data) {
-        if (isPanel) panelLines.push(`🔹 ${label} ❌ 请求失败`);
-        else $.msg($.name, `👤 账号: ${label}`, `❌ 请求失败，请检查网络或参数配置`);
+      if (err || !data || !data.includes("当前金币")) {
+        if (isPanel) panelLines.push(`🔹 ${label} ❌ 失效/失败`);
+        else if (showAccountPopup) $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号ck配置！`);
         return resolve();
       }
 
-      console.log(`\n===== 🎵 [账号：${label}] 详细日志 =====\n${data}\n====================================\n`);
+      console.log(`\n===== 🎵 [账号${index}：${label}] 详细日志 =====\n${data}\n====================================\n`);
 
       let curGold = data.match(/💰 当前金币(?:余额)?:\s*([\d,]+)/)?.[1] || "0";
       let curMoney = data.match(/约(.*?)元/)?.[1] || "0.00";
@@ -134,16 +153,18 @@ function checkBalance(acc, count, isPanel, panelLines, todayStr, accumulator) {
         }
       }
 
-      if (!isPanel) {
-        let popupText = `💰 今日提现金额: ¥${accTodayWithdrawNum.toFixed(2)}\n` +
-                        `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
-                        `📈 历史获得金币: ${historyGold} 金币 (¥${historyMoney})\n` +
-                        `💵 平台现金余额: ¥${cash}\n` +
-                        `💸 累计已提现额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
-        $.msg($.name, `👤 ${label}`, popupText);
+      if (!isPanel && showAccountPopup) {
+        if (accTodayWithdrawNum > 0) {
+          let popupText = `💰 今日提现金额: ¥${accTodayWithdrawNum.toFixed(2)}\n` +
+                          `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
+                          `📈 历史获得金币: ${historyGold} 金币 (¥${historyMoney})\n` +
+                          `💵 平台现金余额: ¥${cash}\n` +
+                          `💸 累计已提现额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
+          $.msg($.name, `👤 账号${index}: ${label}`, popupText);
+        }
       }
 
-      if (isPanel) panelLines.push(`🔹 ${label} | ${todayRecordStr}`);
+      if (isPanel) panelLines.push(`👤 ${label} | ${todayRecordStr}`);
       
       accumulator(accTotalWithdrawNum, accTodayWithdrawNum);
       resolve();
