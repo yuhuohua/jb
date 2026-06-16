@@ -74,7 +74,7 @@ const $ = new Env("🎵 酷狗金币数据");
   if (isPanel) {
     const panelContent = panelLines.join("\n") + 
                          `\n\n💰 今日提现总额：¥${todayTotalWithdraw.toFixed(2)}` +
-                         `\n🏦 累计提现总额：¥${globalTotalWithdraw.toFixed(2)}`;
+                         `\n🏦 累计已到账总额：¥${globalTotalWithdraw.toFixed(2)}`;
     $done({ title: "🎵 酷狗金币数据", content: panelContent, icon: "music.note.list", "icon-color": "#108ee9" });
   } else {
     if (accounts.length > 0) {
@@ -103,7 +103,7 @@ const $ = new Env("🎵 酷狗金币数据");
       
       if (showTotalPopup) {
         await $.wait(500);
-        $.msg(`${$.name} 累计汇总`, "✅ 历史查询结束", `🏦 全部账号已提现总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
+        $.msg(`${$.name} 累计汇总`, "✅ 历史查询结束", `🏦 全部账号已到账总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
       }
     }
     $.done();
@@ -129,19 +129,19 @@ function checkBalance(acc, index, count, isPanel, showAccountPopup, panelLines, 
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data || !data.includes("当前金币")) {
         if (isPanel) panelLines.push(`🔹 ${label} ❌ 失效/失败`);
-        else if (showAccountPopup) $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号ck配置！`);
+        else if (showAccountPopup) $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号token配置！`);
         return resolve();
       }
 
       console.log(`\n===== 🎵 [账号${index}：${label}] 详细日志 =====\n${data}\n====================================\n`);
 
-      let curGold = data.match(/💰 当前金币(?:余额)?:\s*([\d,]+)/)?.[1] || "0";
+      let curGold = data.match(/💰 当前金币(?:余额)?\s*:\s*([\d,]+)/)?.[1] || "0";
       let curMoney = data.match(/当前金币.*?\(¥([\d\.]+)\)/)?.[1] || "0.00";
-      let historyGold = data.match(/📈 历史获得总金币:\s*([\d,]+)/)?.[1] || "0";
+      let historyGold = data.match(/📈 历史获得总金币\s*:\s*([\d,]+)/)?.[1] || "0";
       let historyMoney = data.match(/历史获得.*?\(¥([\d\.]+)\)/)?.[1] || "0.00";
       
-      let cash = data.match(/💵 现金余额:\s*¥?(.*?)(?=\n|$)/)?.[1] || "0.00";
-      let mTw = data.match(/💸 已提现总额:\s*¥?(.*?)\s*\((.*?)笔\)/);
+      let cash = data.match(/💵 现金余额\s*:\s*¥?(.*?)(?=\n|$)/)?.[1] || "0.00";
+      let mTw = data.match(/💸 (?:已提现|已到账)总额\s*:\s*¥?(.*?)\s*\((.*?)笔\)/);
       let totalWithdraw = mTw?.[1]?.trim() || "0.00";
       let countWithdraw = mTw?.[2]?.trim() || "0";
 
@@ -167,7 +167,7 @@ function checkBalance(acc, index, count, isPanel, showAccountPopup, panelLines, 
                           `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
                           `📈 历史获得金币: ${historyGold} 金币 (¥${historyMoney})\n` +
                           `💵 平台现金余额: ¥${cash}\n` +
-                          `💸 累计已提现额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
+                          `💸 累计已到账额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
           $.msg($.name, `👤 账号${index}: ${label}`, popupText);
         }
       }
