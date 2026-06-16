@@ -129,9 +129,10 @@ function checkBalance(acc, index, count, isPanel, showAccountPopup, panelLines, 
       console.log(`\n===== 🎵 [账号${index}：${label}] 详细日志 =====\n${data}\n====================================\n`);
 
       let curGold = data.match(/💰 当前金币(?:余额)?:\s*([\d,]+)/)?.[1] || "0";
-      let curMoney = data.match(/当前金币.*?¥?([\d\.]+)/)?.[1] || data.match(/当前金币.*?约(.*?)元/)?.[1] || "0.00";
+      let curMoney = data.match(/当前金币.*?\(¥([\d\.]+)\)/)?.[1] || "0.00";
       let historyGold = data.match(/📈 历史获得总金币:\s*([\d,]+)/)?.[1] || "0";
-      let historyMoney = data.match(/历史获得.*?¥?([\d\.]+)/)?.[1] || data.match(/历史获得.*?约(.*?)元/)?.[1] || "0.00";
+      let historyMoney = data.match(/历史获得.*?\(¥([\d\.]+)\)/)?.[1] || "0.00";
+      
       let cash = data.match(/💵 现金余额:\s*¥?(.*?)(?=\n|$)/)?.[1] || "0.00";
       let mTw = data.match(/💸 已提现总额:\s*¥?(.*?)\s*\((.*?)笔\)/);
       let totalWithdraw = mTw?.[1]?.trim() || "0.00";
@@ -164,7 +165,7 @@ function checkBalance(acc, index, count, isPanel, showAccountPopup, panelLines, 
         }
       }
 
-      if (isPanel) panelLines.push(`👤 ${label} | ${todayRecordStr}`);
+      if (isPanel) panelLines.push(`🔹 ${label} | ${todayRecordStr}`);
       
       accumulator(accTotalWithdrawNum, accTodayWithdrawNum);
       resolve();
