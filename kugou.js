@@ -67,7 +67,8 @@ const $ = new Env("🎵 酷狗金币数据");
   let globalTotalWithdraw = 0;
   let todayTotalWithdraw = 0;
   let todayWithdrawDetails = [];
-  const todayStr = new Date().toISOString().split('T')[0];
+const todayStr = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+
 
   let notifiedCache = $.getjson("Kugou_Notified_Withdrawals", {});
   if (notifiedCache.date !== todayStr) {
