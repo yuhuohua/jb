@@ -6,6 +6,7 @@ const $ = new Env("🎵 酷狗金币数据");
   let showTodayPopup = true; 
   let showTotalPopup = true; 
   let showAccountPopup = true; 
+  let showOnlyNewPopup = true; 
   const arg = typeof $argument !== 'undefined' ? $argument : "";
   const isPanel = typeof $script !== 'undefined' && $script.type === 'generic';
 
@@ -14,7 +15,7 @@ const $ = new Env("🎵 酷狗金币数据");
     if (cachedContent) {
       $done({ title: "🎵 酷狗金币数据", content: cachedContent, icon: "music.note.list", "icon-color": "#108ee9" });
     } else {
-      $done({ title: "🎵 酷狗金币数据", content: "⏳ 暂无缓存数据，请等待后台定时任务运行，或手动运行一次", icon: "music.note.list", "icon-color": "#108ee9" });
+      $done({ title: "🎵 酷狗金币数据", content: "⏳ 暂无缓存 data，请等待后台定时任务运行，或手动运行一次", icon: "music.note.list", "icon-color": "#108ee9" });
     }
     return; 
   }
@@ -22,11 +23,12 @@ const $ = new Env("🎵 酷狗金币数据");
   if (arg) {
     if (typeof arg === 'object' && !Array.isArray(arg)) {
       if (arg.COUNT) count = parseInt(arg.COUNT) || 5;
-      if (arg.TODAY_SWITCH) showTodayPopup = arg.TODAY_SWITCH !== "#" && arg.TODAY_SWITCH !== "false";
-      if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH !== "#" && arg.TOTAL_SWITCH !== "false";
-      if (arg.ACCOUNT_SWITCH) showAccountPopup = arg.ACCOUNT_SWITCH !== "#" && arg.ACCOUNT_SWITCH !== "false";
+      if (arg.TODAY_SWITCH) showTodayPopup = arg.TODAY_SWITCH !== "#" && arg.TODAY_SWITCH !== "false" && arg.TODAY_SWITCH !== false;
+      if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH !== "#" && arg.TOTAL_SWITCH !== "false" && arg.TOTAL_SWITCH !== false;
+      if (arg.ACCOUNT_SWITCH) showAccountPopup = arg.ACCOUNT_SWITCH !== "#" && arg.ACCOUNT_SWITCH !== "false" && arg.ACCOUNT_SWITCH !== false;
+      if (arg.NEW_ONLY_SWITCH) showOnlyNewPopup = arg.NEW_ONLY_SWITCH !== "#" && arg.NEW_ONLY_SWITCH !== "false" && arg.NEW_ONLY_SWITCH !== false;
       for (let key in arg) {
-        if (key.toUpperCase().startsWith("ACCOUNT") && arg[key]) {
+        if (key.toUpperCase().startsWith("ACCOUNT") && !key.toUpperCase().includes("SWITCH") && arg[key]) {
           parseAccount(arg[key], accounts);
         }
       }
@@ -38,14 +40,27 @@ const $ = new Env("🎵 酷狗金币数据");
       rawArr = rawArr.map(v => v.trim());
       
       let configParams = [];
-      while (rawArr.length > 0 && (rawArr[0] === "" || rawArr[0] === "#" || (!isNaN(rawArr[0]) && rawArr[0] !== ""))) {
+      while (rawArr.length > 0 && (
+        rawArr[0] === "" || 
+        rawArr[0] === "#" || 
+        rawArr[0] === "true" || 
+        rawArr[0] === "false" || 
+        (!isNaN(rawArr[0]) && rawArr[0] !== "")
+      )) {
         configParams.push(rawArr.shift());
       }
       
+      let checkParamOpen = (val) => {
+        if (val === undefined || val === "") return true;
+        if (val === "#" || val === "false" || val === false) return false;
+        return true;
+      };
+
       if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
-      if (configParams.length > 1) showTodayPopup = configParams[1] !== "#";
-      if (configParams.length > 2) showTotalPopup = configParams[2] !== "#";
-      if (configParams.length > 3) showAccountPopup = configParams[3] !== "#";
+      if (configParams.length > 1) showTodayPopup = checkParamOpen(configParams[1]);
+      if (configParams.length > 2) showTotalPopup = checkParamOpen(configParams[2]);
+      if (configParams.length > 3) showAccountPopup = checkParamOpen(configParams[3]);
+      if (configParams.length > 4) showOnlyNewPopup = checkParamOpen(configParams[4]);
       
       rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
       rawArr.forEach(entry => parseAccount(entry, accounts));
@@ -58,7 +73,7 @@ const $ = new Env("🎵 酷狗金币数据");
     return;
   }
 
-  console.log(`🎬 ${$.name} | 模式: 后台运行 | 明细数: ${count} | 账号开关: ${showAccountPopup} | 今日开关: ${showTodayPopup} | 累计开关: ${showTotalPopup} | 账号数: ${accounts.length}`);
+  console.log(`🎬 ${$.name} | 模式: 后台运行 | 明细数: ${count} | 账号开关: ${showAccountPopup} | 仅新提现: ${showOnlyNewPopup} | 今日开关: ${showTodayPopup} | 累计开关: ${showTotalPopup} | 账号数: ${accounts.length}`);
   
   let panelLines = [];
   let globalTotalWithdraw = 0;
@@ -66,9 +81,14 @@ const $ = new Env("🎵 酷狗金币数据");
   let todayWithdrawDetails = [];
   const todayStr = new Date().toISOString().split('T')[0];
 
+  let notifiedCache = $.getjson("Kugou_Notified_Withdrawals", {});
+  if (notifiedCache.date !== todayStr) {
+      notifiedCache = { date: todayStr };
+  }
+
   for (let i = 0; i < accounts.length; i++) {
     try {
-      await checkBalance(accounts[i], i + 1, count, showAccountPopup, panelLines, todayStr, (gw, tw) => {
+      await checkBalance(accounts[i], i + 1, count, showAccountPopup, showOnlyNewPopup, notifiedCache, panelLines, todayStr, (gw, tw) => {
         globalTotalWithdraw += gw;
         todayTotalWithdraw += tw;
         if (tw > 0) {
@@ -80,6 +100,8 @@ const $ = new Env("🎵 酷狗金币数据");
     }
     if (i < accounts.length - 1) await $.wait(1500); 
   }
+
+  $.setjson(notifiedCache, "Kugou_Notified_Withdrawals");
 
   const finalPanelContent = panelLines.join("\n") + 
                             `\n\n💰 今日提现总额：¥${todayTotalWithdraw.toFixed(2)}` +
@@ -127,7 +149,7 @@ function parseAccount(entry, arr) {
   else arr.push({ label: "未命名", openid: entry.trim() });
 }
 
-function checkBalance(acc, index, count, showAccountPopup, panelLines, todayStr, accumulator) {
+function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, notifiedCache, panelLines, todayStr, accumulator) {
   const { label, openid } = acc;
   return new Promise((resolve) => {
     let safeOpenid = openid.replace(/#/g, '%23');
@@ -139,7 +161,7 @@ function checkBalance(acc, index, count, showAccountPopup, panelLines, todayStr,
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data || !data.includes("当前金币")) {
         panelLines.push(`🔹 ${label} ❌ 失效/失败`);
-        if (showAccountPopup) $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号token配置！`);
+        $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号token配置！`);
         return resolve();
       }
 
@@ -173,16 +195,25 @@ function checkBalance(acc, index, count, showAccountPopup, panelLines, todayStr,
 
       if (showAccountPopup) {
         if (accTodayWithdrawNum > 0) {
-          let popupText = `💰 今日提现金额: ¥${accTodayWithdrawNum.toFixed(2)}\n` +
-                          `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
-                          `📈 历史获得金币: ${historyGold} 金币 (¥${historyMoney})\n` +
-                          `💵 平台现金余额: ¥${cash}\n` +
-                          `💸 累计已到账额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
-          $.msg($.name, `👤 账号${index}: ${label}`, popupText);
+          let isNew = true;
+          if (showOnlyNewPopup && notifiedCache[openid] === todayRecordStr) {
+              isNew = false;
+          }
+
+          if (isNew) {
+            let popupText = `💰 今日提现金额: ¥${accTodayWithdrawNum.toFixed(2)}\n` +
+                            `💰 当前金币余额: ${curGold} 金币 (¥${curMoney})\n` +
+                            `📈 历史获得金币: ${historyGold} 金币 (¥${historyMoney})\n` +
+                            `💵 平台现金余额: ¥${cash}\n` +
+                            `💸 累计已到账额: ¥${totalWithdraw} (${countWithdraw} 笔)`;
+            $.msg($.name, `👤 账号${index}: ${label}`, popupText);
+            notifiedCache[openid] = todayRecordStr; 
+          }
         }
       }
 
-      panelLines.push(`🔹 ${label} | ${todayRecordStr}`);
+      let statusIcon = accTodayWithdrawNum > 0 ? "💹" : "📵";
+      panelLines.push(`${statusIcon} ${label} | ${todayRecordStr}`);
       
       accumulator(accTotalWithdrawNum, accTodayWithdrawNum);
       resolve();
