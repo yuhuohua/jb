@@ -23,10 +23,10 @@ const $ = new Env("🎵 酷狗金币数据");
   if (arg) {
     if (typeof arg === 'object' && !Array.isArray(arg)) {
       if (arg.COUNT) count = parseInt(arg.COUNT) || 5;
-      if (arg.TODAY_SWITCH) showTodayPopup = arg.TODAY_SWITCH !== "#" && arg.TODAY_SWITCH !== "false" && arg.TODAY_SWITCH !== false;
-      if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH !== "#" && arg.TOTAL_SWITCH !== "false" && arg.TOTAL_SWITCH !== false;
-      if (arg.ACCOUNT_SWITCH) showAccountPopup = arg.ACCOUNT_SWITCH !== "#" && arg.ACCOUNT_SWITCH !== "false" && arg.ACCOUNT_SWITCH !== false;
-      if (arg.NEW_ONLY_SWITCH) showOnlyNewPopup = arg.NEW_ONLY_SWITCH !== "#" && arg.NEW_ONLY_SWITCH !== "false" && arg.NEW_ONLY_SWITCH !== false;
+      if (arg.TODAY_SWITCH) showTodayPopup = arg.TODAY_SWITCH !== "#" && arg.TODAY_SWITCH !== "false";
+      if (arg.TOTAL_SWITCH) showTotalPopup = arg.TOTAL_SWITCH !== "#" && arg.TOTAL_SWITCH !== "false";
+      if (arg.ACCOUNT_SWITCH) showAccountPopup = arg.ACCOUNT_SWITCH !== "#" && arg.ACCOUNT_SWITCH !== "false";
+      if (arg.NEW_ONLY_SWITCH) showOnlyNewPopup = arg.NEW_ONLY_SWITCH !== "#" && arg.NEW_ONLY_SWITCH !== "false";
       for (let key in arg) {
         if (key.toUpperCase().startsWith("ACCOUNT") && !key.toUpperCase().includes("SWITCH") && arg[key]) {
           parseAccount(arg[key], accounts);
@@ -39,34 +39,19 @@ const $ = new Env("🎵 酷狗金币数据");
       let rawArr = strArg.includes('@') ? strArg.split('@') : strArg.split(',');
       rawArr = rawArr.map(v => v.trim());
       
-      if (rawArr.length >= 14) {
-        count = parseInt(rawArr[0]) || 5;
-        showTodayPopup = (rawArr[1] === "true");
-        showTotalPopup = (rawArr[2] === "true");
-        showAccountPopup = (rawArr[3] === "true");
-        showOnlyNewPopup = (rawArr[4] === "true");
-        
-        for (let i = 5; i < rawArr.length; i++) {
-          let entry = rawArr[i];
-          if (entry && entry !== "null" && entry !== "undefined" && entry !== "false" && entry !== "true") {
-            parseAccount(entry, accounts);
-          }
-        }
-      } else {
-        let configParams = [];
-        while (rawArr.length > 0 && (rawArr[0] === "" || rawArr[0] === "#" || (!isNaN(rawArr[0]) && rawArr[0] !== ""))) {
-          configParams.push(rawArr.shift());
-        }
-        
-        if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
-        if (configParams.length > 1) showTodayPopup = configParams[1] !== "#"; 
-        if (configParams.length > 2) showTotalPopup = configParams[2] !== "#";
-        if (configParams.length > 3) showAccountPopup = configParams[3] !== "#";
-        if (configParams.length > 4) showOnlyNewPopup = configParams[4] !== "#";
-        
-        rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
-        rawArr.forEach(entry => parseAccount(entry, accounts));
+      let configParams = [];
+      while (rawArr.length > 0 && (rawArr[0] === "" || rawArr[0] === "#" || (!isNaN(rawArr[0]) && rawArr[0] !== ""))) {
+        configParams.push(rawArr.shift());
       }
+      
+      if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
+      if (configParams.length > 1) showTodayPopup = configParams[1] !== "#";
+      if (configParams.length > 2) showTotalPopup = configParams[2] !== "#";
+      if (configParams.length > 3) showAccountPopup = configParams[3] !== "#";
+      if (configParams.length > 4) showOnlyNewPopup = configParams[4] !== "#";
+      
+      rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
+      rawArr.forEach(entry => parseAccount(entry, accounts));
     }
   }
 
@@ -164,6 +149,7 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data || !data.includes("当前金币")) {
         panelLines.push(`🔹 ${label} ❌ 失效/失败`);
+        // 【核心修改】：无论任何开关状态，只要账号失效必定强制弹窗
         $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号token配置！`);
         return resolve();
       }
