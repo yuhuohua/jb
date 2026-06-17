@@ -15,7 +15,7 @@ const $ = new Env("🎵 酷狗金币数据");
     if (cachedContent) {
       $done({ title: "🎵 酷狗金币数据", content: cachedContent, icon: "music.note.list", "icon-color": "#108ee9" });
     } else {
-      $done({ title: "🎵 酷狗金币数据", content: "⏳ 暂无缓存 data，请等待后台定时任务运行，或手动运行一次", icon: "music.note.list", "icon-color": "#108ee9" });
+      $done({ title: "🎵 酷狗金币数据", content: "⏳ 暂无缓存数据，请等待后台定时任务运行，或手动运行一次", icon: "music.note.list", "icon-color": "#108ee9" });
     }
     return; 
   }
@@ -39,31 +39,34 @@ const $ = new Env("🎵 酷狗金币数据");
       let rawArr = strArg.includes('@') ? strArg.split('@') : strArg.split(',');
       rawArr = rawArr.map(v => v.trim());
       
-      let configParams = [];
-      while (rawArr.length > 0 && (
-        rawArr[0] === "" || 
-        rawArr[0] === "#" || 
-        rawArr[0] === "true" || 
-        rawArr[0] === "false" || 
-        (!isNaN(rawArr[0]) && rawArr[0] !== "")
-      )) {
-        configParams.push(rawArr.shift());
+      if (rawArr.length >= 14) {
+        count = parseInt(rawArr[0]) || 5;
+        showTodayPopup = (rawArr[1] === "true");
+        showTotalPopup = (rawArr[2] === "true");
+        showAccountPopup = (rawArr[3] === "true");
+        showOnlyNewPopup = (rawArr[4] === "true");
+        
+        for (let i = 5; i < rawArr.length; i++) {
+          let entry = rawArr[i];
+          if (entry && entry !== "null" && entry !== "undefined" && entry !== "false" && entry !== "true") {
+            parseAccount(entry, accounts);
+          }
+        }
+      } else {
+        let configParams = [];
+        while (rawArr.length > 0 && (rawArr[0] === "" || rawArr[0] === "#" || (!isNaN(rawArr[0]) && rawArr[0] !== ""))) {
+          configParams.push(rawArr.shift());
+        }
+        
+        if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
+        if (configParams.length > 1) showTodayPopup = configParams[1] !== "#"; 
+        if (configParams.length > 2) showTotalPopup = configParams[2] !== "#";
+        if (configParams.length > 3) showAccountPopup = configParams[3] !== "#";
+        if (configParams.length > 4) showOnlyNewPopup = configParams[4] !== "#";
+        
+        rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
+        rawArr.forEach(entry => parseAccount(entry, accounts));
       }
-      
-      let checkParamOpen = (val) => {
-        if (val === undefined || val === "") return true;
-        if (val === "#" || val === "false" || val === false) return false;
-        return true;
-      };
-
-      if (configParams.length > 0 && configParams[0] !== "") count = parseInt(configParams[0]) || 5;
-      if (configParams.length > 1) showTodayPopup = checkParamOpen(configParams[1]);
-      if (configParams.length > 2) showTotalPopup = checkParamOpen(configParams[2]);
-      if (configParams.length > 3) showAccountPopup = checkParamOpen(configParams[3]);
-      if (configParams.length > 4) showOnlyNewPopup = checkParamOpen(configParams[4]);
-      
-      rawArr = rawArr.filter(v => v && v !== "null" && v !== "undefined");
-      rawArr.forEach(entry => parseAccount(entry, accounts));
     }
   }
 
