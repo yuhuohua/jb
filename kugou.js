@@ -67,7 +67,7 @@ const $ = new Env("🎵 酷狗金币数据");
   let globalTotalWithdraw = 0;
   let todayTotalWithdraw = 0;
   let todayWithdrawDetails = [];
-const todayStr = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+  const todayStr = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
 
 
   let notifiedCache = $.getjson("Kugou_Notified_Withdrawals", {});
@@ -149,8 +149,7 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
 
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data || !data.includes("当前金币")) {
-        panelLines.push(`🔹 ${label} ❌ 失效/失败`);
-        // 【核心修改】：无论任何开关状态，只要账号失效必定强制弹窗
+        panelLines.push(`🔹 ${index}：${label} ❌ 失效/失败`);
         $.msg($.name, `👤 账号${index}: ${label}`, `❌ Token已失效或请求失败，请检查账号token配置！`);
         return resolve();
       }
@@ -203,7 +202,8 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
       }
 
       let statusIcon = accTodayWithdrawNum > 0 ? "💹" : "📵";
-      panelLines.push(`${statusIcon} ${label} | ${todayRecordStr}`);
+      
+      panelLines.push(`${statusIcon} ${index}：${label} | ${todayRecordStr}`);
       
       accumulator(accTotalWithdrawNum, accTodayWithdrawNum);
       resolve();
