@@ -4,6 +4,17 @@ const $ = new Env("🎬 牛牛短剧余额");
   let accounts = [];
   let threshold = 3.03;
   const arg = typeof $argument !== 'undefined' ? $argument : "";
+  const isPanel = typeof $script !== 'undefined' && $script.type === 'generic';
+
+  if (isPanel) {
+    let cachedData = $.getdata("NNDJ_Panel_Data");
+    if (cachedData) {
+      $done({ title: "🎬 牛牛短剧余额", content: cachedData, icon: "film", "icon-color": "#FF4500" });
+    } else {
+      $done({ title: "🎬 牛牛短剧余额", content: "⏳ 暂无数据，请等待后台定时任务运行完毕", icon: "film", "icon-color": "#FF4500" });
+    }
+    return;
+  }
 
   if (arg) {
     if (typeof arg === 'object' && !Array.isArray(arg)) {
@@ -33,13 +44,21 @@ const $ = new Env("🎬 牛牛短剧余额");
     console.log(`   ➤ 账号: ${acc.label}`);
   }
 
+  let panelLines = []; 
+
   for (let i = 0; i < accounts.length; i++) {
     try {
-      await checkBalance(accounts[i], threshold);
+      await checkBalance(accounts[i], threshold, panelLines);
     } catch (e) {
       console.log(`❌ [账号：${accounts[i].label}] 异常: ${e.message || e}`);
+      panelLines.push(`👤 账号：${accounts[i].label}\n❌ 状态：执行异常`);
     }
     if (i < accounts.length - 1) await $.wait(Math.floor(Math.random() * 3000) + 2000);
+  }
+
+  if (panelLines.length > 0) {
+    $.setdata(panelLines.join('\n\n').trim(), "NNDJ_Panel_Data");
+    console.log("✅ 最新面板数据已储存至持久化缓存");
   }
 
   $.done();
@@ -59,7 +78,7 @@ function parseAccount(entry, arr) {
   }
 }
 
-function checkBalance(acc, threshold) {
+function checkBalance(acc, threshold, panelLines) {
   const { label, openid } = acc;
   return new Promise((resolve) => {
     const url = `http://152.136.162.202/nndj/?openid=${openid}`;
@@ -70,11 +89,18 @@ function checkBalance(acc, threshold) {
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data) {
         console.log(`[账号：${label}] 请求失败: ${err || '无数据'}`);
+        panelLines.push(`👤 账号：${label}\n⚠️ 状态：请求超时或失败`);
         return resolve();
       }
 
-      const match = data.match(/💵\s*可提余额:\s*([\d.]+)\s*元/);
-      const amount = match ? parseFloat(match[1]) : 0;
+      let gold = data.match(/金币余额[^\d]*(\d+)/)?.[1] || "0";
+      let amountMatch = data.match(/可提余额[^\d]*([\d.]+)/);
+      let amount = amountMatch ? parseFloat(amountMatch[1]) : 0;
+      let totalIncome = data.match(/累计收益[^\d]*([\d.]+)/)?.[1] || "0.00";
+      let totalWithdraw = data.match(/已提现(?:额)?[^\d]*([\d.]+)/)?.[1] || "0.00";
+
+      let accPanelText = `👤 账号：${label}\n🪙 金币余额: ${gold}\n💵 可提余额: ${amount.toFixed(2)} 元\n📈 累计收益: ${totalIncome} 元\n📤 已提现额: ${totalWithdraw} 元`;
+      panelLines.push(accPanelText);
 
       const filteredData = data
         .replace(/🔑 OpenID:.*\n?/g, '')
@@ -87,7 +113,7 @@ function checkBalance(acc, threshold) {
         .filter(line => {
           const t = line.trim();
           if (/💰.*牛牛短剧.*余额查询结果/.test(t)) return false; 
-          if (/⏰\s*时间[:：]/.test(t)) return false;              // 时间
+          if (/⏰\s*时间[:：]/.test(t)) return false;              
           if (/🪙\s*金币余额[:：]/.test(t)) return false;          
           return true;
         })
