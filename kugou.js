@@ -65,10 +65,13 @@ const $ = new Env("🎵 酷狗金币数据");
   
   let panelLines = [];
   let globalTotalWithdraw = 0;
+  let monthTotalWithdraw = 0; 
   let todayTotalWithdraw = 0;
   let todayWithdrawDetails = [];
-  const todayStr = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
-
+  
+  const now = new Date();
+  const todayStr = now.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+  const monthStr = todayStr.substring(0, 7); 
 
   let notifiedCache = $.getjson("Kugou_Notified_Withdrawals", {});
   if (notifiedCache.date !== todayStr) {
@@ -77,8 +80,9 @@ const $ = new Env("🎵 酷狗金币数据");
 
   for (let i = 0; i < accounts.length; i++) {
     try {
-      await checkBalance(accounts[i], i + 1, count, showAccountPopup, showOnlyNewPopup, notifiedCache, panelLines, todayStr, (gw, tw) => {
+      await checkBalance(accounts[i], i + 1, count, showAccountPopup, showOnlyNewPopup, notifiedCache, panelLines, todayStr, monthStr, (gw, mw, tw) => {
         globalTotalWithdraw += gw;
+        monthTotalWithdraw += mw; 
         todayTotalWithdraw += tw;
         if (tw > 0) {
             todayWithdrawDetails.push({ idx: i + 1, label: accounts[i].label, amount: tw });
@@ -93,7 +97,8 @@ const $ = new Env("🎵 酷狗金币数据");
   $.setjson(notifiedCache, "Kugou_Notified_Withdrawals");
 
   const finalPanelContent = panelLines.join("\n") + 
-                            `\n\n💰 今日提现总额：¥${todayTotalWithdraw.toFixed(2)}` +
+                            `\n\n📅 本月提现总额：¥${monthTotalWithdraw.toFixed(2)}` +
+                            `\n💰 今日提现总额：¥${todayTotalWithdraw.toFixed(2)}` +
                             `\n🏦 累计已到账总额：¥${globalTotalWithdraw.toFixed(2)}`;
   $.setdata(finalPanelContent, "Kugou_Panel_Data");
   console.log("✅ 最新面板数据已储存至持久化缓存");
@@ -124,7 +129,7 @@ const $ = new Env("🎵 酷狗金币数据");
     
     if (showTotalPopup) {
       await $.wait(500);
-      $.msg(`${$.name} 累计汇总`, "✅ 历史查询结束", `🏦 全部账号已到账总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
+      $.msg(`${$.name} 累计汇总`, "✅ 历史查询结束", `📅 全部账号本月提现总额：¥${monthTotalWithdraw.toFixed(2)}\n🏦 全部账号已到账总额汇总：¥${globalTotalWithdraw.toFixed(2)}`);
     }
   }
   
@@ -133,12 +138,19 @@ const $ = new Env("🎵 酷狗金币数据");
 
 function parseAccount(entry, arr) {
   if (!entry) return;
-  const idx = entry.indexOf('&');
-  if (idx > 0) arr.push({ label: entry.substring(0, idx).trim() || "未命名", openid: entry.substring(idx + 1).trim() });
-  else arr.push({ label: "未命名", openid: entry.trim() });
+  
+  let cleanEntry = String(entry).trim();
+  if (cleanEntry.startsWith('//')) {
+    console.log(`⚠️ 检测到屏蔽符号 //，已跳过数据: ${cleanEntry}`);
+    return;
+  }
+
+  const idx = cleanEntry.indexOf('&');
+  if (idx > 0) arr.push({ label: cleanEntry.substring(0, idx).trim() || "未命名", openid: cleanEntry.substring(idx + 1).trim() });
+  else arr.push({ label: "未命名", openid: cleanEntry.trim() });
 }
 
-function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, notifiedCache, panelLines, todayStr, accumulator) {
+function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, notifiedCache, panelLines, todayStr, monthStr, accumulator) {
   const { label, openid } = acc;
   return new Promise((resolve) => {
     let safeOpenid = openid.replace(/#/g, '%23');
@@ -168,11 +180,14 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
 
       let accTotalWithdrawNum = parseFloat(totalWithdraw.replace(/,/g, '')) || 0;
       let accTodayWithdrawNum = 0;
+      let accMonthWithdrawNum = 0; 
       let todayRecordStr = "今日无提现记录";
       
       let splitStr = data.split(/💸 历史提现明细/);
       if (splitStr.length > 1) {
-        let todayLines = splitStr[1].split('\n').map(l => l.trim()).filter(l => l.includes(todayStr));
+        let detailLines = splitStr[1].split('\n').map(l => l.trim());
+        
+        let todayLines = detailLines.filter(l => l.includes(todayStr));
         if (todayLines.length > 0) {
           let moneyMatch = todayLines[0].match(/¥\s*([\d\.]+)/) || todayLines[0].match(/提现([\d\.]+)元/);
           if (moneyMatch) {
@@ -180,7 +195,17 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
             todayRecordStr = `${todayLines[0].match(/\d{2}:\d{2}/)?.[0] || ""} ¥${accTodayWithdrawNum.toFixed(2)}`.trim();
           }
         }
+
+        let monthLines = detailLines.filter(l => l.includes(monthStr));
+        monthLines.forEach(line => {
+          let moneyMatch = line.match(/¥\s*([\d\.]+)/) || line.match(/提现([\d\.]+)元/);
+          if (moneyMatch) {
+            accMonthWithdrawNum += parseFloat(moneyMatch[1]) || 0;
+          }
+        });
       }
+
+      console.log(`📊 [账号${index}：${label}] 本月累计提现: ¥${accMonthWithdrawNum.toFixed(2)}`);
 
       if (showAccountPopup) {
         if (accTodayWithdrawNum > 0) {
@@ -205,7 +230,7 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
       
       panelLines.push(`${statusIcon} ${index}：${label} | ${todayRecordStr}`);
       
-      accumulator(accTotalWithdrawNum, accTodayWithdrawNum);
+      accumulator(accTotalWithdrawNum, accMonthWithdrawNum, accTodayWithdrawNum);
       resolve();
     });
   });
