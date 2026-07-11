@@ -1,4 +1,4 @@
-const $ = new Env("🎵 酷狗金币数据");
+const $ = new Env("🎵 酷狗提现数据");
 
 (async () => {
   let accounts = [];
@@ -13,9 +13,9 @@ const $ = new Env("🎵 酷狗金币数据");
   if (isPanel) {
     let cachedContent = $.getdata("Kugou_Panel_Data");
     if (cachedContent) {
-      $done({ title: "🎵 酷狗金币数据", content: cachedContent, icon: "music.note.list", "icon-color": "#108ee9" });
+      $done({ title: "🎵 酷狗提现数据", content: cachedContent, icon: "music.note.list", "icon-color": "#108ee9" });
     } else {
-      $done({ title: "🎵 酷狗金币数据", content: "⏳ 暂无缓存数据，请等待后台定时任务运行，或手动运行一次", icon: "music.note.list", "icon-color": "#108ee9" });
+      $done({ title: "🎵 酷狗提现数据", content: "⏳ 暂无缓存数据，请等待后台定时任务运行，或手动运行一次", icon: "music.note.list", "icon-color": "#108ee9" });
     }
     return; 
   }
