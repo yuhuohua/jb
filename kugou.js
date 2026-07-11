@@ -228,7 +228,8 @@ function checkBalance(acc, index, count, showAccountPopup, showOnlyNewPopup, not
 
       let statusIcon = accTodayWithdrawNum > 0 ? "💹" : "📵";
       
-      panelLines.push(`${statusIcon} ${index}：${label} | ${todayRecordStr}`);
+      panelLines.push(`${statusIcon} ${index}：${label} | ${todayRecordStr}\n💵 现金余额      : ¥${cash}`);
+
       
       accumulator(accTotalWithdrawNum, accMonthWithdrawNum, accTodayWithdrawNum);
       resolve();
