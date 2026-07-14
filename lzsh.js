@@ -1,123 +1,107 @@
-const $ = new Env("🎫 乐仔生活 Token 检测");
+const url = "http://152.136.162.202/ScriptPanel/lzsh.php";
+const $ = new Env("乐仔现金库存监控");
 
-(async () => {
-  let accounts = [];
-  const arg = typeof $argument !== 'undefined' ? $argument : "";
-
-  if (arg) {
-    if (typeof arg === 'object' && !Array.isArray(arg)) {
-      for (let key in arg) {
-        if (key.toUpperCase().startsWith("ACCOUNT") && arg[key]) {
-          parseAccount(arg[key], accounts);
-        }
-      }
+$.get({ url: url }, (error, response, data) => {
+    if (error) {
+        console.log("🚫 网络请求失败: " + error);
     } else {
-      const rawArr = String(arg).split('#').map(v => v.trim()).filter(v => v && v !== "null" && v !== "undefined");
-      rawArr.forEach(entry => parseAccount(entry, accounts));
-    }
-  }
+        const lines = data.split('\n');
+        let availableItems = [];
+        let currentNamesArr = [];
 
-  if (accounts.length === 0) {
-    console.log("❌ 未配置任何账号，请检查参数设置。");
-    $.done();
-    return;
-  }
+        lines.forEach(line => {
+            if (line.includes("现金") && line.includes("✅")) {
+                const nameMatch = line.match(/🎁\s*([^|]+)/);
+                const stockMatch = line.match(/✅\s*(\d+)/);
+                
+                if (nameMatch && stockMatch) {
+                    const name = nameMatch[1].trim();
+                    const stock = stockMatch[1];
+                    availableItems.push(`${name} (余 ${stock})`);
+                    currentNamesArr.push(name); 
+                }
+            }
+        });
 
-  console.log(`🎫 ${$.name} | 账号数: ${accounts.length}`);
-  for (const acc of accounts) {
-    console.log(`   ➤ 加载账号: ${acc.label}`);
-  }
+        const dateKey = "lz_stock_date";
+        const countKey = "lz_stock_notify_count";
+        const lastItemsKey = "lz_last_items"; 
 
-  let notifyList = []; // 存储需要通知的账号信息（失效 或 即将过期）
+        if (availableItems.length > 0) {
+            const msg = `发现现金有货：\n${availableItems.join("\n")}`;
+            
+            const now = new Date();
+            now.setHours(now.getHours() + (now.getTimezoneOffset() / 60) + 8); 
+            const today = now.toISOString().split('T')[0];
+            
+            let savedDate = $.getdata(dateKey);
+            let notifyCount = parseInt($.getdata(countKey) || "0");
+            
+            let lastItemsString = $.getdata(lastItemsKey) || "";
+            let lastNamesArr = lastItemsString ? lastItemsString.split(",") : [];
 
-  for (let i = 0; i < accounts.length; i++) {
-    try {
-      await checkToken(accounts[i], notifyList);
-    } catch (e) {
-      console.log(`❌ [账号：${accounts[i].label}] 异常: ${e.message || e}`);
-      notifyList.push(`👤 ${accounts[i].label}：执行异常`);
-    }
-    if (i < accounts.length - 1) await $.wait(Math.floor(Math.random() * 1000) + 1000);
-  }
+            if (savedDate !== today) {
+                savedDate = today;
+                notifyCount = 0;
+                lastNamesArr = []; 
+                $.setdata(savedDate, dateKey);
+            }
+            let hasNewItem = currentNamesArr.some(name => !lastNamesArr.includes(name));
 
-  if (notifyList.length > 0) {
-    console.log("\n⚠️ 检测到失效或即将过期的账号，准备发送通知...");
-    $.msg(
-      $.name, 
-      "⚠️ 发现失效或即将过期的 Token", 
-      notifyList.join('\n\n')
-    );
-  } else {
-    console.log("\n✅ 所有 Token 均有效且时间充足，静默运行，不弹窗。");
-  }
+            if (hasNewItem) {
+                console.log("👀 检测到有新的商品上架（或重新上架），重置弹窗次数！");
+                notifyCount = 0; 
+            }
+            $.setdata(currentNamesArr.join(","), lastItemsKey);
 
-  $.done();
-})();
-
-function parseAccount(entry, arr) {
-  if (!entry || entry === "null" || entry === "undefined") return;
-  const str = String(entry).trim();
-  if (!str) return;
-  const idx = str.indexOf('&');
-  if (idx > 0) {
-    const label = str.substring(0, idx).trim();
-    const token = str.substring(idx + 1).trim();
-    if (token) arr.push({ label: label || "未命名", token });
-  } else {
-    arr.push({ label: "账号" + (arr.length + 1), token: str });
-  }
-}
-
-function checkToken(acc, notifyList) {
-  const { label, token } = acc;
-  return new Promise((resolve) => {
-    const url = `http://152.136.162.202/ScriptPanel/lzshcheck.php?xiaoletoken=${token}`;
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
-    };
-
-    $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
-      if (err || !data) {
-        console.log(`[账号：${label}] 请求失败: ${err || '网络超时或无数据'}`);
-        notifyList.push(`👤 ${label}：请求超时或失败`);
-        return resolve();
-      }
-
-      const expireMatch = data.match(/过期时间：([\d-]+\s[\d:]+)/);
-      const expireTime = expireMatch ? expireMatch[1] : "未知";
-
-      console.log(`\n===== 🎫 [账号：${label}] 校验结果 =====`);
-      if (data.includes('✅ Token 有效')) {
-        console.log(`状态: ✅ Token 正常有效`);
-        console.log(`过期时间: ${expireTime}`);
-        
-        if (expireTime !== "未知") {
-          const expDate = new Date(expireTime.replace(/-/g, '/')); 
-          const now = new Date();
-          const diffMs = expDate.getTime() - now.getTime();
-          const hours24 = 24 * 60 * 60 * 1000;
-          
-          if (diffMs > 0 && diffMs < hours24) {
-            const hoursLeft = (diffMs / (1000 * 60 * 60)).toFixed(1);
-            console.log(`⚠️ 警告: Token 即将过期 (剩余 ${hoursLeft} 小时)`);
-            notifyList.push(`👤 ${label}：即将过期 (剩 ${hoursLeft} 小时) ⚠️\n⏰ 过期时间: ${expireTime}`);
-          }
+            if (notifyCount < 1) {
+                $.notify("💰 乐仔补货啦！", "", msg);
+                notifyCount++;
+                $.setdata(notifyCount.toString(), countKey);
+                console.log(msg);
+                console.log(`🔔 今日已弹窗通知 ${notifyCount} 次（当前商品状态）`);
+            } else {
+                console.log(`🤫 仍是这些商品有货，当前状态今日弹窗已达1次，停止打扰。`);
+                console.log(msg); 
+            }
+            
+        } else {
+            console.log("😴 巡检完成：目前所有现金类商品均无货。");
+            $.setdata("", "lz_last_items");
         }
-        // -----------------------------
-        
-      } else if (data.includes('❌ 失效')) {
-        console.log(`状态: ❌ Token 已失效`);
-        notifyList.push(`👤 ${label}：Token 已失效 ❌`);
-      } else {
-        console.log(`状态: ⚠️ 无法判断状态，可能接口格式有变`);
-        notifyList.push(`👤 ${label}：接口返回未知状态 ⚠️`);
-      }
-      console.log(`======================================\n`);
-      
-      resolve();
-    });
-  });
+    }
+    $.done();
+});
+
+function Env(name) {
+    const isQX = typeof $task !== "undefined";
+    const isLoon = typeof $loon !== "undefined";
+    const isSurge = typeof $httpClient !== "undefined" && !isLoon;
+    this.name = name;
+    
+    this.notify = (title, subtitle, body) => {
+        if (isQX) $notify(title, subtitle, body);
+        else if (isSurge || isLoon) $notification.post(title, subtitle, body);
+    };
+    
+    this.get = (options, callback) => {
+        if (isQX) {
+            options.method = "GET";
+            $task.fetch(options).then(res => callback(null, res, res.body), err => callback(err));
+        } else if (isSurge || isLoon) $httpClient.get(options, callback);
+    };
+    
+    this.getdata = (key) => {
+        if (isSurge || isLoon) return $persistentStore.read(key);
+        if (isQX) return $prefs.valueForKey(key);
+    };
+    
+    this.setdata = (val, key) => {
+        if (isSurge || isLoon) return $persistentStore.write(val, key);
+        if (isQX) return $prefs.setValueForKey(val, key);
+    };
+    
+    this.done = (value = {}) => {
+        if (typeof $done !== "undefined") $done(value);
+    };
 }
-
-
-function Env(t,e){"undefined"!=typeof process&&JSON.stringify(process.env).indexOf("GITHUB")>-1&&process.exit(0);class s{constructor(t){this.env=t}write(t,e){return this.env.setdata(t,e)}read(t,e){return this.env.getdata(t,e)}fetch(t){return new Promise((e,s)=>{this.env.get(t,(t,r,i)=>{e({error:t,response:r,body:i})})})}}return new class{constructor(t,e){this.name=t,this.http=new s(this),this.data=null,this.dataFile="box.dat",this.logs=[],this.isMute=!1,this.isNeedRewrite=!1,this.logSeparator="\n",this.startTime=(new Date).getTime(),Object.assign(this,e)}isNode(){return"undefined"!=typeof module&&!!module.exports}isQuanX(){return"undefined"!=typeof $task}isSurge(){return"undefined"!=typeof $httpClient&&"undefined"==typeof $loon}isLoon(){return"undefined"!=typeof $loon}toObj(t,e=null){try{return JSON.parse(t)}catch{return e||t}}toStr(t,e=null){try{return JSON.stringify(t)}catch{return e||t}}getjson(t,e){let s=e;const r=this.getdata(t);if(r)try{s=JSON.parse(this.getdata(t))}catch{}return s}setjson(t,e){try{return this.setdata(JSON.stringify(t),e)}catch{return!1}}getScript(t){return new Promise(e=>{this.get({url:t},(t,s,r)=>e(r))})}runScript(t,e){return new Promise(s=>{let r=this.getdata("@chavy_boxjs_userCfgs.httpapi");r=r?r.replace(/\n/g,"").trim():r;let i=this.isSurge()?Object.keys($httpClient).length:0;r=this.isQuanX()||this.isLoon()&&i?r:null,this.getScript(t).then(t=>{this.setdata(t,"__chavy_tmp"),this.runScriptContent(t,e).then(t=>s(t))})})}runScriptContent(t,e){return new Promise(s=>{let r=this.getdata("@chavy_boxjs_userCfgs.httpapi");r=r?r.replace(/\n/g,"").trim():r;let i=this.isSurge()?Object.keys($httpClient).length:0;r=this.isQuanX()||this.isLoon()&&i?r:null;try{$=this,eval(t),s("")}catch(t){this.logErr(t),s("")}})}write(t,e){return this.setdata(t,e)}read(t,e){return this.getdata(t,e)}setdata(t,e){let s=!1;if(this.isSurge()||this.isLoon()){if($persistentStore.write(t,e))s=!0}else this.isNode()&&(this.data=this.loaddata(),this.data[e]=t,this.writedata(),s=!0);if(this.isQuanX()){if($prefs.setValueForKey(t,e))s=!0}return s}getdata(t){let e=null;if(this.isSurge()||this.isLoon())e=$persistentStore.read(t);else if(this.isQuanX())e=$prefs.valueForKey(t);else if(this.isNode()){this.data=this.loaddata(),e=this.data[t]}return e}loaddata(){return new Promise(t=>{let e={};if(this.isNode()){const s=require("fs"),r=require("path"),i=r.resolve(this.dataFile),o=r.resolve(process.cwd(),this.dataFile),n=s.existsSync(i),a=!n&&s.existsSync(o);if(!n&&!a)return;const h=n?i:o;try{e=JSON.parse(s.readFileSync(h))}catch{}}t(e)})}writedata(){if(this.isNode()){const t=require("fs"),e=require("path"),s=e.resolve(this.dataFile),r=e.resolve(process.cwd(),this.dataFile),i=t.existsSync(s),o=!i&&t.existsSync(r),n=i?s:r;t.writeFileSync(n,JSON.stringify(this.data))}}msg(t,e,s,r){if(this.isSurge()||this.isLoon())$notification.post(t,e,s,r);else if(this.isQuanX())$notify(t,e,s,r);else if(this.isNode()){console.log(e);if(s)console.log(s)}this.logs.push("",t,e,s)}log(...t){t.length>0&&(this.logs=[...this.logs,...t]),console.log(t.join(this.logSeparator))}logErr(t,e){const s=!this.isSurge()&&!this.isQuanX()&&!this.isLoon();s?this.log("",`❗️${this.name}, 错误!`,t.stack):this.log("",`❗️${this.name}, 错误!`,t)}wait(t){return new Promise(e=>setTimeout(e,t))}done(t={}){const e=(new Date).getTime(),s=(e-this.startTime)/1e3;this.log("",`🔔${this.name}, 结束! 🕛 ${s} 秒`),this.log(),(this.isSurge()||this.isQuanX()||this.isLoon())&&$done(t)}get(t,e){this.send(t,"GET",e)}post(t,e){this.send(t,"POST",e)}send(t,e,s){if(this.isSurge()||this.isLoon()){const r=$httpClient;r[e.toLowerCase()](t,(t,e,r)=>{!t&&e&&(e.body=r,e.statusCode=e.status),s(t,e,r)})}else this.isQuanX()&&(t.method=e,this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:e,statusCode:r,headers:i,body:o}=t;s(null,{status:e,statusCode:r,headers:i,body:o},o)},t=>s(t)))}}(t,e)}
