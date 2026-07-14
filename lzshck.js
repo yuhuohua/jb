@@ -28,27 +28,27 @@ const $ = new Env("🎫 乐仔生活 Token 检测");
     console.log(`   ➤ 加载账号: ${acc.label}`);
   }
 
-  let failedAccounts = []; 
+  let notifyList = []; // 存储需要通知的账号信息（失效 或 即将过期）
 
   for (let i = 0; i < accounts.length; i++) {
     try {
-      await checkToken(accounts[i], failedAccounts);
+      await checkToken(accounts[i], notifyList);
     } catch (e) {
       console.log(`❌ [账号：${accounts[i].label}] 异常: ${e.message || e}`);
-      failedAccounts.push(`👤 ${accounts[i].label}：执行异常`);
+      notifyList.push(`👤 ${accounts[i].label}：执行异常`);
     }
     if (i < accounts.length - 1) await $.wait(Math.floor(Math.random() * 1000) + 1000);
   }
 
-  if (failedAccounts.length > 0) {
-    console.log("\n⚠️ 检测到失效账号，准备发送通知...");
+  if (notifyList.length > 0) {
+    console.log("\n⚠️ 检测到失效或即将过期的账号，准备发送通知...");
     $.msg(
       $.name, 
-      "⚠️ 发现失效 Token，请及时更新", 
-      failedAccounts.join('\n\n')
+      "⚠️ 发现失效或即将过期的 Token", 
+      notifyList.join('\n\n')
     );
   } else {
-    console.log("\n✅ 所有 Token 均有效，静默运行，不弹窗。");
+    console.log("\n✅ 所有 Token 均有效且时间充足，静默运行，不弹窗。");
   }
 
   $.done();
@@ -68,7 +68,7 @@ function parseAccount(entry, arr) {
   }
 }
 
-function checkToken(acc, failedAccounts) {
+function checkToken(acc, notifyList) {
   const { label, token } = acc;
   return new Promise((resolve) => {
     const url = `http://152.136.162.202/ScriptPanel/lzshcheck.php?xiaoletoken=${token}`;
@@ -79,7 +79,7 @@ function checkToken(acc, failedAccounts) {
     $.get({ url, headers, timeout: 10000 }, (err, resp, data) => {
       if (err || !data) {
         console.log(`[账号：${label}] 请求失败: ${err || '网络超时或无数据'}`);
-        failedAccounts.push(`👤 ${label}：请求超时或失败`);
+        notifyList.push(`👤 ${label}：请求超时或失败`);
         return resolve();
       }
 
@@ -90,12 +90,27 @@ function checkToken(acc, failedAccounts) {
       if (data.includes('✅ Token 有效')) {
         console.log(`状态: ✅ Token 正常有效`);
         console.log(`过期时间: ${expireTime}`);
+        
+        if (expireTime !== "未知") {
+          const expDate = new Date(expireTime.replace(/-/g, '/')); 
+          const now = new Date();
+          const diffMs = expDate.getTime() - now.getTime();
+          const hours24 = 24 * 60 * 60 * 1000;
+          
+          if (diffMs > 0 && diffMs < hours24) {
+            const hoursLeft = (diffMs / (1000 * 60 * 60)).toFixed(1);
+            console.log(`⚠️ 警告: Token 即将过期 (剩余 ${hoursLeft} 小时)`);
+            notifyList.push(`👤 ${label}：即将过期 (剩 ${hoursLeft} 小时) ⚠️\n⏰ 过期时间: ${expireTime}`);
+          }
+        }
+        // -----------------------------
+        
       } else if (data.includes('❌ 失效')) {
         console.log(`状态: ❌ Token 已失效`);
-        failedAccounts.push(`👤 ${label}：Token 已失效 ❌`);
+        notifyList.push(`👤 ${label}：Token 已失效 ❌`);
       } else {
         console.log(`状态: ⚠️ 无法判断状态，可能接口格式有变`);
-        failedAccounts.push(`👤 ${label}：接口返回未知状态 ⚠️`);
+        notifyList.push(`👤 ${label}：接口返回未知状态 ⚠️`);
       }
       console.log(`======================================\n`);
       
