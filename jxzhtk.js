@@ -8,7 +8,7 @@ if (xToken) {
     if (xToken === lastToken) {
         console.log("🤫 [静默记录] X-Token 持续捕获中: " + xToken);
     } else {
-        console.log("🎉 [新捕获] 成功捕获到新的 X-Token: " + xToken);
+        console.log("🎉 [匠心忠华] 成功捕获到X-Token: " + xToken);
         $notification.post("🎉 X-Token 捕获成功", "发现新的 Token", xToken);
         
         $persistentStore.write(xToken, CACHE_KEY);
