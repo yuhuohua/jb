@@ -2,9 +2,9 @@ const $ = new Env("🎬 河马剧场余额");
 
 (async () => {
   let accounts = [];
-  let threshold = 0.01;
+  let threshold = 50;
   const arg = typeof $argument !== 'undefined' ? $argument : "";
-  const isPanel = (typeof $script !== 'undefined' && $script.type === 'generic') || (typeof $loon !== 'undefined' && $trigger === 'panel');
+  const isPanel = typeof $script !== 'undefined' && $script.type === 'generic';
 
   if (isPanel) {
     let cachedData = $.getdata("HMJC_Panel_Data");
@@ -16,8 +16,17 @@ const $ = new Env("🎬 河马剧场余额");
     return;
   }
 
+  // 解析参数
   if (arg) {
-    if (typeof arg === 'object' && !Array.isArray(arg)) {
+    if (Array.isArray(arg)) {
+      // Loon 传入的数组： [门槛金额, 账号1, 账号2, ...]
+      if (arg.length > 0 && arg[0] !== "" && arg[0] !== "null" && arg[0] !== "undefined") {
+        threshold = parseFloat(arg[0]) || threshold;
+      }
+      for (let i = 1; i < arg.length; i++) {
+        parseAccount(arg[i], accounts);
+      }
+    } else if (typeof arg === 'object' && !Array.isArray(arg)) {
       if (arg.MIN_AMOUNT) threshold = parseFloat(arg.MIN_AMOUNT);
       for (let key in arg) {
         if (key.toUpperCase().startsWith("ACCOUNT") && arg[key]) {
@@ -34,7 +43,7 @@ const $ = new Env("🎬 河马剧场余额");
   }
 
   if (accounts.length === 0) {
-    $.msg($.name, "❌ 配置错误", "请填写账号，格式：标签&Token");
+    $.msg($.name, "❌ 配置错误", "请填写账号，格式：标签&token#user");
     $.done();
     return;
   }
@@ -64,23 +73,14 @@ function parseAccount(entry, arr) {
   if (!entry || entry === "null" || entry === "undefined") return;
   const str = String(entry).trim();
   if (!str) return;
-
-  let label, token;
-  const ampIdx = str.indexOf('&');
-  if (ampIdx > 0) {
-    label = str.substring(0, ampIdx).trim();
-    token = str.substring(ampIdx + 1).trim();
+  const idx = str.indexOf('&');
+  if (idx > 0) {
+    const label = str.substring(0, idx).trim();
+    const token = str.substring(idx + 1).trim();
+    if (token) arr.push({ label: label || "未命名", token });
   } else {
-    const hashIdx = str.indexOf('#');
-    if (hashIdx > 0) {
-      label = str.substring(0, hashIdx).trim();
-      token = str.substring(hashIdx + 1).trim();
-    } else {
-      label = "未命名";
-      token = str;
-    }
+    arr.push({ label: "未命名", token: str });
   }
-  if (token) arr.push({ label: label || "未命名", token });
 }
 
 function checkBalance(acc, threshold, panelLines) {
