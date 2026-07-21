@@ -16,10 +16,8 @@ const $ = new Env("🎬 河马剧场余额");
     return;
   }
 
-  // 解析参数
   if (arg) {
     if (Array.isArray(arg)) {
-      // Loon 传入的数组： [门槛金额, 账号1, 账号2, ...]
       if (arg.length > 0 && arg[0] !== "" && arg[0] !== "null" && arg[0] !== "undefined") {
         threshold = parseFloat(arg[0]) || threshold;
       }
