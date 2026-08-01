@@ -5,9 +5,7 @@
 let isSilent = false;
 let accounts = [];
 
-
 const arg = typeof $argument !== 'undefined' ? $argument : '';
-
 const isPanelContext = (typeof $script !== 'undefined' && $script.type === 'panel') || (typeof $input !== 'undefined' && $input.purpose === 'panel');
 
 if (arg) {
@@ -18,17 +16,16 @@ if (arg) {
   }
 
   const cleanArg = trimmedArg.replace(/&?\s*silent\s*=\s*[^&]*/i, '').trim();
-
   const parts = cleanArg.split(/[\s#&,]+/);
 
   parts.forEach(p => {
     const part = p.trim();
     if (part.includes(':')) {
       if (!part.includes('{') && !part.includes('}')) {
-        const cleanPart = part.replace(/(phone|account|pwd|password\s*)=\s*/gi, '');
-        const [phone, pwd] = cleanPart.split(':').map(s => s.trim());
-        if (phone && pwd && phone !== '#' && pwd !== '#') {
-          accounts.push({ phone, pwd });
+        const cleanPart = part.replace(/(phone|account|pwd|password|token\s*)=\s*/gi, '');
+        const [phone, pwd, token] = cleanPart.split(':').map(s => s ? s.trim() : '');
+        if (phone && pwd && token && phone !== '#' && pwd !== '#' && token !== '#') {
+          accounts.push({ phone, pwd, token });
         }
       }
     }
@@ -39,7 +36,7 @@ if (accounts.length === 0) {
   if (isPanelContext) {
     $done({
       title: "电信营业厅",
-      content: "📭 未配置任何有效账号\n请在编辑参数中填写“手机号:服务密码”",
+      content: "📭 未配置任何有效账号\n请在编辑参数中填写“手机号:服务密码:Token”",
       icon: "simcard.fill",
       "icon-color": "#999999"
     });
@@ -57,7 +54,7 @@ if (accounts.length === 0) {
       const acc = accounts[i];
       console.log(`  ↳ 查询尾号 ${acc.phone.slice(-4)} ...`);
       try {
-        const info = await querySingleAccount(acc.phone, acc.pwd, true); // 静默，不弹通知
+        const info = await querySingleAccount(acc.phone, acc.pwd, acc.token, true); // 静默，不弹通知
         lines.push(`📱 尾号${info.suffix}: ${info.summary}`);
       } catch (err) {
         lines.push(`📱 尾号${acc.phone.slice(-4)}: ❌ ${err.message}`);
@@ -82,7 +79,7 @@ if (accounts.length === 0) {
       const acc = accounts[i];
       console.log(`\n🔹 [${i + 1}/${accounts.length}] 查询 ${acc.phone}`);
       try {
-        const info = await querySingleAccount(acc.phone, acc.pwd, isSilent);
+        const info = await querySingleAccount(acc.phone, acc.pwd, acc.token, isSilent);
       } catch (err) {
         console.log(`❌ 账号 ${acc.phone} 失败: ${err.message}`);
         if (!isSilent) {
@@ -103,8 +100,8 @@ if (accounts.length === 0) {
   }
 })();
 
-function querySingleAccount(phone, pwd, silent) {
-  const url = `https://api.iosxx.cn/dx.php?ChinaTelecom=${phone}*${pwd}`;
+function querySingleAccount(phone, pwd, token, silent) {
+  const url = `https://api.iosxx.cn/dxcx.php?ChinaTelecom=${phone}*${pwd}*${token}`;
 
   return new Promise((resolve, reject) => {
     $httpClient.get(url, function (error, response, data) {
