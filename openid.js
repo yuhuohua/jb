@@ -9,7 +9,7 @@ if (match && match[1]) {
     
     const title = "🎉 微信 OpenID 获取成功";
     const subtitle = "";
-    const body = `openid=${openid}\n(已打印至日志，长按通知可复制)`;
+    const body = `openid=${openid}\n(已打印至日志，请去日志查看复制)`;
     
     if (typeof $notify !== "undefined") {
         $notify(title, subtitle, body);
