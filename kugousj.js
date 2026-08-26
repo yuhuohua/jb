@@ -30,9 +30,9 @@ function writeVal(val, key) {
 if (currentUrl) {
     let lastUrl = readVal(CACHE_KEY);
     if (currentUrl === lastUrl) {
-        console.log("🤫 [静默记录] 酷狗数据  持续捕获中: \n" + currentUrl);
+        console.log("\n🤫 [静默记录] 酷狗数据  持续捕获中: \n" + currentUrl);
     } else {
-        console.log("🎵 [新捕获] 成功捕获到新的酷狗数据 : \n" + currentUrl);
+        console.log("\n🎵 [新捕获] 成功捕获到新的酷狗数据 : \n" + currentUrl);
         notify("🎵 酷狗数据  捕获成功", "发现新的数据", currentUrl);
         writeVal(currentUrl, CACHE_KEY);
     }
