@@ -1,4 +1,4 @@
-const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1";
+const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const loginUrl = "https://69yun69.com/auth/login";
 const checkinUrl = "https://69yun69.com/user/checkin";
 
@@ -6,32 +6,42 @@ let isSilent = false;
 let accounts = [];
 
 function parseParams() {
-    let arg = (typeof $argument !== "undefined" && $argument) ? $argument : "";
+    let arg = (typeof $argument !== "undefined" && $argument) ?$argument : "";
     let argStr = "";
 
     if (typeof arg === "string") {
         argStr = arg;
     } else if (typeof arg === "object" && arg !== null) {
         argStr = JSON.stringify(arg);
-        if (arg["silent"] === "#" || arg["静默"] === "#") isSilent = true;
+        if (arg["silent"] === "#" || arg["静默"] === "#" || arg["静默运行"] === "#") isSilent = true;
     }
 
     if (argStr.includes("silent=#")) isSilent = true;
 
     if (typeof arg === "string") {
-        const parts = arg.replace("&silent=#", "").split("#").filter(p => p.trim() !== "");
+        let cleaned = arg.replace(/^\[\vert{}\]$/g, "");
+        
+        if (cleaned.endsWith(",#") || cleaned.includes("&silent=#")) {
+            isSilent = true;
+        }
+
+        const parts = cleaned.split(/[#,]/).map(p => p.trim()).filter(Boolean);
+        
         parts.forEach(p => {
-            const sep = p.includes(":") ? ":" : (p.includes(",") ? "," : null);
+            if (p === "#" || p === "1" || p === "0") return; // 过滤纯控制标识
+            const sep = p.includes(":") ? ":" : (p.includes("----") ? "----" : null);
             if (sep) {
                 const [email, password] = p.split(sep).map(s => s.trim());
-                if (email && password) accounts.push({ email, password });
+                if (email && password && email.includes("@")) {
+                    accounts.push({ email, password });
+                }
             }
         });
     } else if (typeof arg === "object" && !Array.isArray(arg)) {
         for (let key in arg) {
             let val = arg[key];
             if (typeof val === "string" && val.includes("@")) {
-                const sep = val.includes(":") ? ":" : (val.includes(",") ? "," : null);
+                const sep = val.includes(":") ? ":" : null;
                 if (sep) {
                     const [email, password] = val.split(sep).map(s => s.trim());
                     if (email && password) accounts.push({ email, password });
@@ -74,26 +84,33 @@ async function main() {
 
 function performLogin(email, password) {
     const body = `email=${encodeURIComponent(email)}&passwd=${encodeURIComponent(password)}&code=`;
+    const reqHeaders = {
+        "User-Agent": userAgent,
+        "Origin": "https://69yun69.com",
+        "Referer": loginUrl,
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "zh-CN,zh-Hans;q=0.9",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Dest": "empty"
+    };
+
     return new Promise((resolve, reject) => {
         $httpClient.post({
             url: loginUrl,
-            header: {
-                "User-Agent": userAgent,
-                "Origin": "https://69yun69.com",
-                "Referer": loginUrl,
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-                "Accept-Language": "zh-CN,zh-Hans;q=0.9"
-            },
+            headers: reqHeaders, // 满足 Loon 规范
+            header: reqHeaders,  // 兼容老版本 Surge
             body: body
         }, (error, response, data) => {
             if (error) return reject(new Error(error));
-            if (response.status !== 200) return reject(new Error(`状态码: ${response.status}`));
+            const status = response ? (response.status || response.statusCode) : 0;
+            if (status !== 200) return reject(new Error(`状态码: ${status}`));
             try {
                 const res = JSON.parse(data);
                 if (res.ret !== 1) return reject(new Error(res.msg || "登录失败"));
-                const cookie = response.headers['Set-Cookie'] || response.headers['set-cookie'] || '';
+                const cookie = (response.headers && (response.headers['Set-Cookie'] || response.headers['set-cookie'])) || '';
                 resolve({ cookie, data: res });
             } catch (e) {
                 reject(new Error("登录响应解析失败"));
@@ -103,17 +120,24 @@ function performLogin(email, password) {
 }
 
 function performCheckin(cookie) {
+    const reqHeaders = {
+        "User-Agent": userAgent,
+        "Origin": "https://69yun69.com",
+        "Referer": "https://69yun69.com/user",
+        "X-Requested-With": "XMLHttpRequest",
+        "Cookie": cookie,
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Dest": "empty"
+    };
+
     return new Promise((resolve, reject) => {
         $httpClient.post({
             url: checkinUrl,
-            header: {
-                "User-Agent": userAgent,
-                "Origin": "https://69yun69.com",
-                "Referer": "https://69yun69.com/user",
-                "X-Requested-With": "XMLHttpRequest",
-                "Cookie": cookie,
-                "Content-Length": "0"
-            }
+            headers: reqHeaders,
+            header: reqHeaders,
+            body: ""
         }, (error, response, data) => {
             if (error) return reject(new Error(error));
             try {
@@ -127,7 +151,7 @@ function performCheckin(cookie) {
 
 function handleResult(result, email) {
     const masked = maskEmail(email);
-    if (result.ret === 0 && result.msg.includes("已经签到过了")) {
+    if (result.ret === 0 && result.msg && result.msg.includes("已经签到过了")) {
         console.log(`ℹ️ [${masked}] 今日已签到`);
         if (!isSilent) $notification.post("🔁 69云今日已签到", masked, result.msg);
         return;
