@@ -1,6 +1,6 @@
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.2 Mobile/15E148 Safari/604.1";
-const loginUrl = "https://69yun69.com/auth/login";
-const checkinUrl = "https://69yun69.com/user/checkin";
+const loginUrl = "https://3sf339eu.656787.xyz/uuid/auth/login";
+const checkinUrl = "https://3sf339eu.656787.xyz/uuid/user/checkin";
 
 let isSilent = false;
 let accounts = [];
