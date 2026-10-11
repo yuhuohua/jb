@@ -281,7 +281,8 @@ const STORE = {
   refreshTs: 'cm_refresh_ts',
   multiDs: 'cm_multi_datasource',
   primaryPhone: 'cm_primary_phone',
-  cardIndex: 'cm_card_index'
+  cardIndex: 'cm_card_index',
+  multiAuth: 'cm_multi_auth'
 };
 
 function parseArguments() {
@@ -355,7 +356,6 @@ function httpRequest(options) {
   });
 }
 
-
 function isAutoLogin(url) {
   if (/10086\.online-cmcc\.cn/.test(url)) return true;
   return /client\.app\.coc\.10086\.cn/.test(url) && /\/biz-orange\/[A-Z]{2}\/.*(autoLogin|refreshSession)/.test(url);
@@ -386,17 +386,36 @@ function handleRequestCapture() {
 
   if (!plain) return $done({});
 
+  let autoPhone = null;
   try {
     const parsedObj = JSON.parse(plain);
-    const autoPhone = (parsedObj.reqBody && parsedObj.reqBody.cellNum) || parsedObj.cellNum;
-    if (autoPhone && /^\d{11}$/.test(autoPhone)) {
-      $persistentStore.write(autoPhone, STORE.primaryPhone);
+    autoPhone = (parsedObj.reqBody && parsedObj.reqBody.cellNum) || parsedObj.cellNum;
+    if (autoPhone && /^\d{11}$/.test(autoPhone)) {$persistentStore.write(autoPhone, STORE.primaryPhone);
+
+      let multiAuth = {};
+      try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
+
+      const keep = {};
+      for (const k of Object.keys(headers)) {
+        if (/^(cookie|content-length|connection|accept-encoding)$/i.test(k)) continue;
+        keep[k] = Array.isArray(headers[k]) ? headers[k].join(', ') : String(headers[k]);
+      }
+
+      multiAuth[autoPhone] = {
+        paramsEnc: body,
+        xqen: usedQen,
+        loginUrl: url,
+        cookie: String(getHeader(headers, 'cookie') || '').trim(),
+        loginHeaders: JSON.stringify(keep),
+        loginTs: Date.now()
+      };
+      
+      $persistentStore.write(JSON.stringify(multiAuth), STORE.multiAuth);$persistentStore.write('0', `cm_refresh_ts_${autoPhone}`);
     }
   } catch (e) {}
 
   $persistentStore.write(body, STORE.paramsEnc);
-  $persistentStore.write(usedQen, STORE.xqen);
-  $persistentStore.write(url, STORE.loginUrl);
+  $persistentStore.write(usedQen, STORE.xqen);$persistentStore.write(url, STORE.loginUrl);
 
   const cookie = String(getHeader(headers, 'cookie') || '').trim();
   if (cookie) $persistentStore.write(cookie, STORE.cookie);
@@ -406,26 +425,41 @@ function handleRequestCapture() {
     if (/^(cookie|content-length|connection|accept-encoding)$/i.test(k)) continue;
     keep[k] = Array.isArray(headers[k]) ? headers[k].join(', ') : String(headers[k]);
   }
-  $persistentStore.write(JSON.stringify(keep), STORE.loginHeaders);
-  $persistentStore.write(String(Date.now()), STORE.loginTs);
+  $persistentStore.write(JSON.stringify(keep), STORE.loginHeaders);$persistentStore.write(String(Date.now()), STORE.loginTs);
 
-  $notification.post('中国移动', '登录参数捕获成功', '小组件与面板多账号已就绪');
+  if (autoPhone && /^\d{11}$/.test(autoPhone)) {
+    $notification.post('中国移动', `多卡捕获成功: ${autoPhone}`, '独立凭证已安全存储');
+  } else {
+    $notification.post('中国移动', '登录参数捕获成功', '小组件多账号已就绪');
+  }
+
   $done({});
 }
 
 function handleResponseCapture() {
-  const url = (typeof $request !== 'undefined' && $request) ? $request.url : '';
+  const url = (typeof $request !== 'undefined' && $request) ?$request.url : '';
   if (!isAutoLogin(url)) return $done({});
   const respHeaders = $response.headers || {};
   const setCookie = String(getHeader(respHeaders, 'set-cookie') || '').trim();
-  if (setCookie && $persistentStore.read(STORE.cookie) !== setCookie) {
+  
+  if (setCookie) {
     $persistentStore.write(setCookie, STORE.cookie);
+    
+    const currentPhone = $persistentStore.read(STORE.primaryPhone);
+    if (currentPhone) {
+      let multiAuth = {};
+      try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
+      if (multiAuth[currentPhone]) {
+        multiAuth[currentPhone].cookie = setCookie;
+        $persistentStore.write(JSON.stringify(multiAuth), STORE.multiAuth);
+      }
+    }
   }
   $done({});
 }
 
-function buildQuery(params, kind, targetPhone) {
-  const cookie = $persistentStore.read(STORE.cookie) || '';
+function buildQuery(params, kind, targetPhone, authObj) {
+  const cookie = authObj ? authObj.cookie : ($persistentStore.read(STORE.cookie) || '');
   const ts = Date.now();
   const nonce = randomDigits(8);
   const pathname = kind === 'fee'
@@ -464,41 +498,91 @@ function buildQuery(params, kind, targetPhone) {
   };
 }
 
-function absorbSetCookie(headers) {
+function absorbSetCookie(headers, phone) {
   const sc = String(getHeader(headers, 'set-cookie') || '').trim();
-  if (sc && /JSESSIONID=/i.test(sc) && $persistentStore.read(STORE.cookie) !== sc) {$persistentStore.write(sc, STORE.cookie);
+  if (sc && /JSESSIONID=/i.test(sc)) {
+    $persistentStore.write(sc, STORE.cookie);
+    if (phone) {
+      let multiAuth = {};
+      try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
+      if (multiAuth[phone]) {
+        multiAuth[phone].cookie = sc;
+        $persistentStore.write(JSON.stringify(multiAuth), STORE.multiAuth);
+      }
+    }
     return true;
   }
   return false;
 }
 
-async function autoRefreshSession() {
-  const url = $persistentStore.read(STORE.loginUrl) || '';
-  const body = $persistentStore.read(STORE.paramsEnc) || '';
+async function autoRefreshSession(phone) {
+  let multiAuth = {};
+  try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
+  let auth = multiAuth[phone];
+
+  const url = auth ? auth.loginUrl : ($persistentStore.read(STORE.loginUrl) || '');
+  const body = auth ? auth.paramsEnc : ($persistentStore.read(STORE.paramsEnc) || '');
   if (!url || !body) return false;
-  const last = parseInt($persistentStore.read(STORE.refreshTs) || '0', 10);
-  if (Date.now() - last < 10 * 60 * 1000) return false;
-  $persistentStore.write(String(Date.now()), STORE.refreshTs);
+  
+  const lastKey = auth ? `cm_refresh_ts_${phone}` : STORE.refreshTs;
+  const last = parseInt($persistentStore.read(lastKey) || '0', 10);
+  
+  if (Date.now() - last < 1 * 60 * 1000) {
+    console.log(`[保活-续期] 账号 ${phone} 距上次刷新不到1分钟，跳过。`);
+    return false;
+  }
+  $persistentStore.write(String(Date.now()), lastKey);
 
   let headers = {};
-  try { headers = JSON.parse($persistentStore.read(STORE.loginHeaders) || '{}'); } catch (e) {}
-  if (!Object.keys(headers).some((k) => /^x-qen$/i.test(k))) headers['x-qen'] = $persistentStore.read(STORE.xqen) || '2';
+  let headStr = auth ? auth.loginHeaders : ($persistentStore.read(STORE.loginHeaders) || '{}');
+  try { headers = JSON.parse(headStr); } catch (e) {}
+
+  if (!Object.keys(headers).some((k) => /^x-qen$/i.test(k))) headers['x-qen'] = auth ? auth.xqen : ($persistentStore.read(STORE.xqen) || '2');
   if (!Object.keys(headers).some((k) => /^content-type$/i.test(k))) headers['Content-Type'] = 'application/json';
   if (!Object.keys(headers).some((k) => /^user-agent$/i.test(k))) headers['User-Agent'] = UA_WAP;
-  const oldCookie = $persistentStore.read(STORE.cookie) || '';
+  
+  const oldCookie = auth ? auth.cookie : ($persistentStore.read(STORE.cookie) || '');
   if (oldCookie) headers['Cookie'] = oldCookie;
 
+  console.log(`[保活-续期] 尝试为账号 ${phone} 发起刷新请求...`);
   try {
     const resp = await httpRequest({ url, headers, body, timeout: 15000 });
-    return !!resp && resp.status === 200 && absorbSetCookie(resp.headers);
+    
+    let plainBody = resp.body;
+    try {
+      const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
+      if (xpen === '1') { plainBody = cmDecrypt(JSON.parse(resp.body).body, RESP1_KEY, DEFAULT_IV); }
+      else if (xpen === '2') { plainBody = cmDecrypt(resp.body, RESP2_KEY, DEFAULT_IV); }
+      else if (xpen === '14') { plainBody = cmDecrypt(resp.body, RESP14_KEY, RESP14_IV); }
+    } catch(e) {}
+
+    console.log(`[保活-续期] 账号 ${phone} 续期请求响应码: ${resp ? resp.status : '无'}`);
+    console.log(`[保活-续期] 账号 ${phone} 续期业务报文: ${plainBody}`);
+    
+    // 增加重新登录、410000 判定作为失败关键词
+    const isSuccessText = !plainBody.includes('失效') && !plainBody.includes('过期') && !plainBody.includes('失败') && !plainBody.includes('未登录') && !plainBody.includes('重新登录') && !plainBody.includes('410000');
+    const success = !!resp && resp.status === 200 && isSuccessText;
+    
+    if (success) {
+      absorbSetCookie(resp.headers, phone);
+    }
+    console.log(`[保活-续期] 最终判定刷新状态: ${success}`);
+    return success;
   } catch (e) {
+    console.log(`[保活-续期] 账号 ${phone} 续期发生网络异常: ${e.message || e}`);
     return false;
   }
 }
 
 async function queryKind(kind, phone) {
-  const enc = $persistentStore.read(STORE.paramsEnc) || '';
-  const xqen = ($persistentStore.read(STORE.xqen) || '').trim();
+  console.log(`[查询] 正在获取账号 ${phone} 的 ${kind} 接口数据...`);
+  let multiAuth = {};
+  try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
+  let auth = multiAuth[phone];
+
+  let enc = auth ? auth.paramsEnc : ($persistentStore.read(STORE.paramsEnc) || '');
+  let xqen = auth ? (auth.xqen || '').trim() : ($persistentStore.read(STORE.xqen) || '').trim();
+
   if (!enc || !REQ_KEY[xqen]) {
     const e = new Error('no-params');
     e.stage = 'capture';
@@ -506,7 +590,7 @@ async function queryKind(kind, phone) {
   }
   const plain = cmDecrypt(enc, REQ_KEY[xqen], REQ_IV[xqen]);
   const params = JSON.parse(plain);
-  const q = buildQuery(params, kind, phone);
+  const q = buildQuery(params, kind, phone, auth);
   const resp = await httpRequest({ url: q.url, headers: q.headers, body: q.body, timeout: 15000 });
 
   if (!resp || resp.status !== 200) {
@@ -514,7 +598,7 @@ async function queryKind(kind, phone) {
     e.stage = 'network';
     throw e;
   }
-  absorbSetCookie(resp.headers);
+  absorbSetCookie(resp.headers, phone);
   const text = String(resp.body || '');
   const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
   let data;
@@ -529,7 +613,9 @@ async function queryKind(kind, phone) {
     } else {
       data = JSON.parse(text);
     }
+    console.log(`[查询] 账号 ${phone} 的 ${kind} 接口成功解密响应: ${JSON.stringify(data).substring(0, 200)}`);
   } catch (e) {
+    console.log(`[查询] 账号 ${phone} 的 ${kind} 接口解密失败，原始报文: ${text.substring(0, 200)}`);
     const err = new Error('decrypt-failed');
     err.stage = 'decrypt';
     throw err;
@@ -662,14 +748,22 @@ async function fetchAccountData(phone) {
   };
 
   let ds = await fetchSingle();
-  if (!ds.valid && (await autoRefreshSession())) {
-    ds = await fetchSingle();
+  if (!ds.valid) {
+    console.log(`[处理] 账号 ${phone} 初次数据无效或鉴权失败，尝试自动续期...`);
+    const refreshed = await autoRefreshSession(phone);
+    if (refreshed) {
+      console.log(`[处理] 账号 ${phone} 续期成功，重新拉取最新数据。`);
+      ds = await fetchSingle();
+    } else {
+      console.log(`[处理] 账号 ${phone} 续期失败或仍在冷却时间内。`);
+    }
   }
   if (!ds.valid) throw new Error('登录态失效');
   return ds;
 }
 
 async function loadMultiData(accounts) {
+  console.log(`[拉取] 准备处理账号列表，共 ${accounts.length} 个账号...`);
   const hasParams = !!($persistentStore.read(STORE.paramsEnc));
   if (!hasParams) return { configured: false, reason: 'capture' };
   if (!accounts || accounts.length === 0) return { configured: false, reason: 'phone' };
@@ -683,6 +777,7 @@ async function loadMultiData(accounts) {
   let hasUpdated = false;
 
   for (const acc of accounts) {
+    console.log(`[拉取] 开始处理账号: ${acc.label} (${acc.phone})`);
     try {
       const ds = await fetchAccountData(acc.phone);
       ds.phone = acc.phone;
@@ -690,7 +785,9 @@ async function loadMultiData(accounts) {
       results.push({ label: acc.label, phone: acc.phone, ds, success: true });
       cachedMap[acc.phone] = ds;
       hasUpdated = true;
+      console.log(`[拉取] 账号 ${acc.phone} 成功拉取到最新数据`);
     } catch (e) {
+      console.log(`[拉取] 账号 ${acc.phone} 网络拉取失败，尝试使用本地缓存。错误: ${e.message}`);
       if (cachedMap[acc.phone]) {
         results.push({ label: acc.label, phone: acc.phone, ds: cachedMap[acc.phone], success: true, fromCache: true });
       } else {
@@ -710,11 +807,11 @@ async function loadMultiData(accounts) {
     if (results[0] && results[0].ds) {
       $persistentStore.write(JSON.stringify(results[0].ds), 'cm_datasource');
     }
+    console.log(`[缓存] 最新数据已覆盖本地持久化存储。`);
   }
 
   return { configured: true, results };
 }
-
 
 function toMB(d) {
   const n = parseFloat(d && d.number);
@@ -792,10 +889,9 @@ async function renderPanel() {
     const res = await loadMultiData(accounts);
 
     if (!res.configured) {
-      const msg = res.reason === 'phone' ? '⚠️ 请在模块参数中填入账号' : '📲 请在App用短信验证码登录一次';
       $done({
         title: panelTitle,
-        content: msg,
+        content: '⚠️ 请在模块参数中填入账号',
         icon: 'exclamationmark.triangle',
         'icon-color': '#FF9F0A'
       });
@@ -811,7 +907,7 @@ async function renderPanel() {
     if (!item.success || !item.ds) {
       $done({
         title: `${panelTitle} · ${item.label}`,
-        content: `⚠️ 拉取失败: ${item.error || '登录过期'}\n👉 打开App刷新后重试`,
+        content: `⚠️ 拉取失败: ${item.error || '登录过期'}`,
         icon: 'exclamationmark.triangle',
         'icon-color': '#FF453A'
       });
@@ -856,11 +952,27 @@ async function renderPanel() {
 }
 
 async function keepAliveTask() {
+  console.log("========== 定时保活/后台刷新任务开始 ==========");
   const args = parseArguments();
   const accounts = parseAccounts(args.accounts);
+  
+  if (accounts.length === 0) {
+    const primary = $persistentStore.read(STORE.primaryPhone);
+    if (primary) {
+      console.log(`[任务] 模块参数未填写账号，检测到本地主账号缓存：${primary}`);
+      accounts.push({ label: '卡1', phone: primary });
+    } else {
+      console.log(`[任务] 警告：没有可用账号参数或缓存的主账号，任务将被跳过。`);
+    }
+  }
+
   try {
-    await loadMultiData(accounts);
-  } catch (e) {}
+    const res = await loadMultiData(accounts);
+    console.log(`[任务] 后台多账号数据拉取结束，执行结果状态：${res.configured}`);
+  } catch (e) {
+    console.log(`[任务] 执行期间发生错误: ${e.message || e}`);
+  }
+  console.log("========== 定时保活/后台刷新任务结束 ==========");
   $done({});
 }
 
@@ -868,8 +980,15 @@ try {
   const isResp = typeof $response !== 'undefined';
   const isReq = typeof $request !== 'undefined' && $request &&$request.url;
 
-  if (isResp && isAutoLogin($request ? $request.url : '')) {     handleResponseCapture();   } else if (isReq && isAutoLogin($request.url)) {
-    handleRequestCapture();
+  if (isReq || isResp) {
+    const url = $request ? ($request.url || '') : '';
+    if (isResp && isAutoLogin(url)) {
+      handleResponseCapture();
+    } else if (isReq && !isResp && isAutoLogin(url)) {
+      handleRequestCapture();
+    } else {
+      $done({});
+    }
   } else {
     const args = parseArguments();
     if (args.action === 'task') {
@@ -879,10 +998,13 @@ try {
     }
   }
 } catch (globalErr) {
-  $done({
-    title: '中国移动',
-    content: `执行崩溃: ${globalErr.message || globalErr}`,
-    icon: 'exclamationmark.triangle',
-    'icon-color': '#FF453A'
-  });
+  if (typeof $request === 'undefined') {$done({
+      title: '中国移动',
+      content: `执行崩溃: ${globalErr.message || globalErr}`,
+      icon: 'exclamationmark.triangle',
+      'icon-color': '#FF453A'
+    });
+  } else {
+    $done({});
+  }
 }
