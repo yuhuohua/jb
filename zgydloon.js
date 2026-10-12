@@ -36,9 +36,7 @@ function utf8String(bytes) {
   return s;
 }
 
-function bytesToHex(bytes) {
-  return bytes.map((b) => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
-}
+function bytesToHex(bytes) { return bytes.map((b) => ('0' + (b & 0xff).toString(16)).slice(-2)).join(''); }
 
 const B64MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function base64Encode(bytes) {
@@ -59,10 +57,7 @@ function md5Hex(str) {
   for (let i = 0; i < 8; i++) msg.push((bitLen / Math.pow(2, i * 8)) & 0xff);
 
   let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
-  const S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-             5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
-             4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-             6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
+  const S = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22, 5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20, 4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23, 6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
   const K = [];
   for (let i = 0; i < 64; i++) K.push(Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296) >>> 0);
 
@@ -71,9 +66,7 @@ function md5Hex(str) {
 
   for (let off = 0; off < msg.length; off += 64) {
     const M = [];
-    for (let i = 0; i < 16; i++) {
-      M.push((msg[off + i * 4] | (msg[off + i * 4 + 1] << 8) | (msg[off + i * 4 + 2] << 16) | (msg[off + i * 4 + 3] << 24)) >>> 0);
-    }
+    for (let i = 0; i < 16; i++) M.push((msg[off+i*4] | (msg[off+i*4+1]<<8) | (msg[off+i*4+2]<<16) | (msg[off+i*4+3]<<24)) >>> 0);
     let A = a0, B = b0, C = c0, D = d0;
     for (let i = 0; i < 64; i++) {
       let F, g;
@@ -91,23 +84,7 @@ function md5Hex(str) {
   return bytesToHex([].concat(le(a0), le(b0), le(c0), le(d0)));
 }
 
-const AES_SBOX = [
-  0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
-  0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,
-  0xb7,0xfd,0x93,0x26,0x36,0x3f,0xf7,0xcc,0x34,0xa5,0xe5,0xf1,0x71,0xd8,0x31,0x15,
-  0x04,0xc7,0x23,0xc3,0x18,0x96,0x05,0x9a,0x07,0x12,0x80,0xe2,0xeb,0x27,0xb2,0x75,
-  0x09,0x83,0x2c,0x1a,0x1b,0x6e,0x5a,0xa0,0x52,0x3b,0xd6,0xb3,0x29,0xe3,0x2f,0x84,
-  0x53,0xd1,0x00,0xed,0x20,0xfc,0xb1,0x5b,0x6a,0xcb,0xbe,0x39,0x4a,0x4c,0x58,0xcf,
-  0xd0,0xef,0xaa,0xfb,0x43,0x4d,0x33,0x85,0x45,0xf9,0x02,0x7f,0x50,0x3c,0x9f,0xa8,
-  0x51,0xa3,0x40,0x8f,0x92,0x9d,0x38,0xf5,0xbc,0xb6,0xda,0x21,0x10,0xff,0xf3,0xd2,
-  0xcd,0x0c,0x13,0xec,0x5f,0x97,0x44,0x17,0xc4,0xa7,0x7e,0x3d,0x64,0x5d,0x19,0x73,
-  0x60,0x81,0x4f,0xdc,0x22,0x2a,0x90,0x88,0x46,0xee,0xb8,0x14,0xde,0x5e,0x0b,0xdb,
-  0xe0,0x32,0x3a,0x0a,0x49,0x06,0x24,0x5c,0xc2,0xd3,0xac,0x62,0x91,0x95,0xe4,0x79,
-  0xe7,0xc8,0x37,0x6d,0x8d,0xd5,0x4e,0xa9,0x6c,0x56,0xf4,0xea,0x65,0x7a,0xae,0x08,
-  0xba,0x78,0x25,0x2e,0x1c,0xa6,0xb4,0xc6,0xe8,0xdd,0x74,0x1f,0x4b,0xbd,0x8b,0x8a,
-  0x70,0x3e,0xb5,0x66,0x48,0x03,0xf6,0x0e,0x61,0x35,0x57,0xb9,0x86,0xc1,0x1d,0x9e,
-  0xe1,0xf8,0x98,0x11,0x69,0xd9,0x8e,0x94,0x9b,0x1e,0x87,0xe9,0xce,0x55,0x28,0xdf,
-  0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16];
+const AES_SBOX = [0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,0xb7,0xfd,0x93,0x26,0x36,0x3f,0xf7,0xcc,0x34,0xa5,0xe5,0xf1,0x71,0xd8,0x31,0x15,0x04,0xc7,0x23,0xc3,0x18,0x96,0x05,0x9a,0x07,0x12,0x80,0xe2,0xeb,0x27,0xb2,0x75,0x09,0x83,0x2c,0x1a,0x1b,0x6e,0x5a,0xa0,0x52,0x3b,0xd6,0xb3,0x29,0xe3,0x2f,0x84,0x53,0xd1,0x00,0xed,0x20,0xfc,0xb1,0x5b,0x6a,0xcb,0xbe,0x39,0x4a,0x4c,0x58,0xcf,0xd0,0xef,0xaa,0xfb,0x43,0x4d,0x33,0x85,0x45,0xf9,0x02,0x7f,0x50,0x3c,0x9f,0xa8,0x51,0xa3,0x40,0x8f,0x92,0x9d,0x38,0xf5,0xbc,0xb6,0xda,0x21,0x10,0xff,0xf3,0xd2,0xcd,0x0c,0x13,0xec,0x5f,0x97,0x44,0x17,0xc4,0xa7,0x7e,0x3d,0x64,0x5d,0x19,0x73,0x60,0x81,0x4f,0xdc,0x22,0x2a,0x90,0x88,0x46,0xee,0xb8,0x14,0xde,0x5e,0x0b,0xdb,0xe0,0x32,0x3a,0x0a,0x49,0x06,0x24,0x5c,0xc2,0xd3,0xac,0x62,0x91,0x95,0xe4,0x79,0xe7,0xc8,0x37,0x6d,0x8d,0xd5,0x4e,0xa9,0x6c,0x56,0xf4,0xea,0x65,0x7a,0xae,0x08,0xba,0x78,0x25,0x2e,0x1c,0xa6,0xb4,0xc6,0xe8,0xdd,0x74,0x1f,0x4b,0xbd,0x8b,0x8a,0x70,0x3e,0xb5,0x66,0x48,0x03,0xf6,0x0e,0x61,0x35,0x57,0xb9,0x86,0xc1,0x1d,0x9e,0xe1,0xf8,0x98,0x11,0x69,0xd9,0x8e,0x94,0x9b,0x1e,0x87,0xe9,0xce,0x55,0x28,0xdf,0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16];
 const AES_INV_SBOX = new Array(256);
 for (let i = 0; i < 256; i++) AES_INV_SBOX[AES_SBOX[i]] = i;
 const AES_RCON = [0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36];
@@ -115,14 +92,10 @@ const AES_RCON = [0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36];
 function aesKeyExpand(keyBytes) {
   const Nk = 4, Nb = 4, Nr = 10;
   const W = new Array(4 * (Nr + 1));
-  for (let i = 0; i < Nk; i++) {
-    W[i] = (keyBytes[4*i] << 24) | (keyBytes[4*i+1] << 16) | (keyBytes[4*i+2] << 8) | keyBytes[4*i+3];
-  }
+  for (let i = 0; i < Nk; i++) W[i] = (keyBytes[4*i] << 24) | (keyBytes[4*i+1] << 16) | (keyBytes[4*i+2] << 8) | keyBytes[4*i+3];
   for (let i = Nk; i < 4 * (Nr + 1); i++) {
     let t = W[i - 1];
-    if (i % Nk === 0) {
-      t = ((AES_SBOX[(t >> 16) & 0xff] << 24) | (AES_SBOX[(t >> 8) & 0xff] << 16) | (AES_SBOX[t & 0xff] << 8) | AES_SBOX[(t >> 24) & 0xff]) ^ (AES_RCON[i / Nk - 1] << 24);
-    }
+    if (i % Nk === 0) t = ((AES_SBOX[(t >> 16) & 0xff] << 24) | (AES_SBOX[(t >> 8) & 0xff] << 16) | (AES_SBOX[t & 0xff] << 8) | AES_SBOX[(t >> 24) & 0xff]) ^ (AES_RCON[i / Nk - 1] << 24);
     W[i] = (W[i - Nk] ^ t) >>> 0;
   }
   return W;
@@ -168,15 +141,9 @@ function aesMixColumns(s, inv) {
     const a = [s[c*4], s[c*4+1], s[c*4+2], s[c*4+3]];
     let b;
     if (!inv) {
-      b = [gmul(a[0],2)^gmul(a[1],3)^a[2]^a[3],
-            a[0]^gmul(a[1],2)^gmul(a[2],3)^a[3],
-            a[0]^a[1]^gmul(a[2],2)^gmul(a[3],3),
-            gmul(a[0],3)^a[1]^a[2]^gmul(a[3],2)];
+      b = [gmul(a[0],2)^gmul(a[1],3)^a[2]^a[3], a[0]^gmul(a[1],2)^gmul(a[2],3)^a[3], a[0]^a[1]^gmul(a[2],2)^gmul(a[3],3), gmul(a[0],3)^a[1]^a[2]^gmul(a[3],2)];
     } else {
-      b = [gmul(a[0],14)^gmul(a[1],11)^gmul(a[2],13)^gmul(a[3],9),
-            gmul(a[0],9)^gmul(a[1],14)^gmul(a[2],11)^gmul(a[3],13),
-            gmul(a[0],13)^gmul(a[1],9)^gmul(a[2],14)^gmul(a[3],11),
-            gmul(a[0],11)^gmul(a[1],13)^gmul(a[2],9)^gmul(a[3],14)];
+      b = [gmul(a[0],14)^gmul(a[1],11)^gmul(a[2],13)^gmul(a[3],9), gmul(a[0],9)^gmul(a[1],14)^gmul(a[2],11)^gmul(a[3],13), gmul(a[0],13)^gmul(a[1],9)^gmul(a[2],14)^gmul(a[3],11), gmul(a[0],11)^gmul(a[1],13)^gmul(a[2],9)^gmul(a[3],14)];
     }
     for (let r = 0; r < 4; r++) s[c*4+r] = b[r];
   }
@@ -185,9 +152,7 @@ function aesMixColumns(s, inv) {
 function aesEncryptBlock(block16, W) {
   const s = block16.slice();
   aesAddRoundKey(s, W, 0);
-  for (let r = 1; r < 10; r++) {
-    aesSubBytes(s, false); aesShiftRows(s, false); aesMixColumns(s, false); aesAddRoundKey(s, W, r);
-  }
+  for (let r = 1; r < 10; r++) { aesSubBytes(s, false); aesShiftRows(s, false); aesMixColumns(s, false); aesAddRoundKey(s, W, r); }
   aesSubBytes(s, false); aesShiftRows(s, false); aesAddRoundKey(s, W, 10);
   return s;
 }
@@ -195,9 +160,7 @@ function aesEncryptBlock(block16, W) {
 function aesDecryptBlock(block16, W) {
   const s = block16.slice();
   aesAddRoundKey(s, W, 10);
-  for (let r = 9; r >= 1; r--) {
-    aesShiftRows(s, true); aesSubBytes(s, true); aesAddRoundKey(s, W, r); aesMixColumns(s, true);
-  }
+  for (let r = 9; r >= 1; r--) { aesShiftRows(s, true); aesSubBytes(s, true); aesAddRoundKey(s, W, r); aesMixColumns(s, true); }
   aesShiftRows(s, true); aesSubBytes(s, true); aesAddRoundKey(s, W, 0);
   return s;
 }
@@ -241,10 +204,7 @@ function aesCbcDecrypt(cipherBytes, keyStr, ivStr) {
   return out.slice(0, out.length - pad);
 }
 
-function cmEncrypt(plainStr, keyStr, ivStr) {
-  return base64Encode(aesCbcEncrypt(plainStr, keyStr, ivStr || '9791027341711819'));
-}
-
+function cmEncrypt(plainStr, keyStr, ivStr) { return base64Encode(aesCbcEncrypt(plainStr, keyStr, ivStr || '9791027341711819')); }
 function cmDecrypt(b64Str, keyStr, ivStr) {
   const raw = String(b64Str).replace(/[^A-Za-z0-9+/=]/g, '');
   const bytes = [];
@@ -257,7 +217,6 @@ function cmDecrypt(b64Str, keyStr, ivStr) {
   const trimmed = bytes.slice(0, bytes.length - padCount);
   return utf8String(aesCbcDecrypt(trimmed, keyStr, ivStr || '9791027341711819'));
 }
-
 function cmMd5(str) { return md5Hex(str); }
 
 const REQ_KEY = { '2': 'bAIgvwAuA4tbDr9d', '12': 'V0dSUFZtS1NWRnJa', '14': 'tVkdaRWRY0ZkV1Vr' };
@@ -288,11 +247,8 @@ const STORE = {
 function safeReadJSON(key) {
   try {
     let val;
-    if (typeof $persistentStore !== 'undefined') {
-      val = $persistentStore.read(key);
-    } else if (typeof $prefs !== 'undefined') {
-      val = $prefs.valueForKey(key);
-    }
+    if (typeof $persistentStore !== 'undefined') val = $persistentStore.read(key);
+    else if (typeof $prefs !== 'undefined') val = $prefs.valueForKey(key);
     if (!val || val === 'undefined' || val === 'null' || String(val).trim() === '') return {};
     return JSON.parse(val);
   } catch (e) {
@@ -300,33 +256,34 @@ function safeReadJSON(key) {
   }
 }
 
+function writeStore(val, key) {
+  if (typeof $persistentStore !== 'undefined') $persistentStore.write(val, key);
+  else if (typeof $prefs !== 'undefined') $prefs.setValueForKey(val, key);
+}
+
+function readStore(key) {
+  if (typeof $persistentStore !== 'undefined') return $persistentStore.read(key);
+  else if (typeof $prefs !== 'undefined') return $prefs.valueForKey(key);
+  return null;
+}
+
 function parseArguments() {
   const args = { action: '', accounts: '' };
-  
-  if (typeof $script !== 'undefined' && $script.type === 'cron') {
-    args.action = 'task';
-  }
+  if (typeof $script !== 'undefined' && $script.type === 'cron') args.action = 'task';
 
   if (typeof $argument !== 'undefined' && $argument) {
     let argStr = '';
-    if (Array.isArray($argument)) {
-      argStr = $argument.map(v => String(v)).join(',');
-    } else if (typeof $argument === 'object') {
+    if (Array.isArray($argument)) argStr = $argument.map(v => String(v)).join(',');
+    else if (typeof $argument === 'object') {
       try { argStr = Object.values($argument).map(v => String(v)).join(','); } catch(e){}
-    } else {
-      argStr = String($argument).trim();
-    }
+    } else argStr = String($argument).trim();
 
-    if (argStr.startsWith('[') && argStr.endsWith(']')) {
-      argStr = argStr.substring(1, argStr.length - 1);
-    }
+    if (argStr.startsWith('[') && argStr.endsWith(']')) argStr = argStr.substring(1, argStr.length - 1);
 
     if (argStr.includes('action=panel')) {
       argStr.split('&').forEach((item) => {
         const idx = item.indexOf('=');
-        if (idx !== -1) {
-          args[item.slice(0, idx).trim()] = decodeURIComponent(item.slice(idx + 1).trim());
-        }
+        if (idx !== -1) args[item.slice(0, idx).trim()] = decodeURIComponent(item.slice(idx + 1).trim());
       });
     } else {
       if (!args.action) args.action = 'task';
@@ -353,9 +310,7 @@ function parseAccounts(accStr) {
       phone = parts[1].trim();
     }
     const match = phone.match(/\d{11}/);
-    if (match) {
-      accounts.push({ label, phone: match[0] });
-    }
+    if (match) accounts.push({ label, phone: match[0] });
   });
   return accounts;
 }
@@ -364,19 +319,11 @@ function getAutoAccounts() {
   const accs = [];
   const multiAuth = safeReadJSON(STORE.multiAuth);
   const keys = Object.keys(multiAuth);
-  
   if (keys.length > 0) {
-    keys.forEach((phone, idx) => {
-      accs.push({ label: `卡${idx + 1}`, phone: phone });
-    });
+    keys.forEach((phone, idx) => { accs.push({ label: `卡${idx + 1}`, phone: phone }); });
   } else {
-    let primary = null;
-    if (typeof $persistentStore !== 'undefined') primary =$persistentStore.read(STORE.primaryPhone);
-    else if (typeof $prefs !== 'undefined') primary =$prefs.valueForKey(STORE.primaryPhone);
-    
-    if (primary && primary !== 'undefined' && primary !== 'null') {
-      accs.push({ label: '卡1', phone: primary });
-    }
+    const primary = readStore(STORE.primaryPhone);
+    if (primary && primary !== 'undefined' && primary !== 'null') accs.push({ label: '卡1', phone: primary });
   }
   return accs;
 }
@@ -384,7 +331,7 @@ function getAutoAccounts() {
 function pad2(n) { return n < 10 ? `0${n}` : `${n}`; }
 
 function fmtTime(ts) {
-  const d = new Date(ts);
+  const d = new Date(ts || Date.now());
   return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
@@ -422,28 +369,8 @@ function httpRequest(options) {
 }
 
 function notify(title, subtitle, body) {
-  if (typeof $notification !== 'undefined') {
-    $notification.post(title, subtitle, body);
-  } else if (typeof $notify !== 'undefined') {
-    $notify(title, subtitle, body);
-  } else {
-    console.log(`${title}\n${subtitle}\n${body}`);
-  }
-}
-
-function writeStore(val, key) {
-  if (typeof $persistentStore !== 'undefined') {$persistentStore.write(val, key);
-  } else if (typeof $prefs !== 'undefined') {$prefs.setValueForKey(val, key);
-  }
-}
-
-function readStore(key) {
-  if (typeof $persistentStore !== 'undefined') {
-    return $persistentStore.read(key);
-  } else if (typeof $prefs !== 'undefined') {
-    return $prefs.valueForKey(key);
-  }
-  return null;
+  if (typeof $notification !== 'undefined') $notification.post(title, subtitle, body);
+  else if (typeof $notify !== 'undefined') $notify(title, subtitle, body);
 }
 
 function isAutoLogin(url) {
@@ -482,7 +409,6 @@ function handleRequestCapture() {
     autoPhone = (parsedObj.reqBody && parsedObj.reqBody.cellNum) || parsedObj.cellNum;
     if (autoPhone && /^\d{11}$/.test(autoPhone)) {
       writeStore(autoPhone, STORE.primaryPhone);
-
       const multiAuth = safeReadJSON(STORE.multiAuth);
       const keep = {};
       for (const k of Object.keys(headers)) {
@@ -524,7 +450,6 @@ function handleRequestCapture() {
   } else {
     notify('中国移动', '登录参数捕获成功', '小组件多账号已就绪');
   }
-
   $done({});
 }
 
@@ -536,7 +461,6 @@ function handleResponseCapture() {
   
   if (setCookie) {
     writeStore(setCookie, STORE.cookie);
-    
     const currentPhone = readStore(STORE.primaryPhone);
     if (currentPhone) {
       const multiAuth = safeReadJSON(STORE.multiAuth);
@@ -553,9 +477,7 @@ function buildQuery(params, kind, targetPhone, authObj) {
   const cookie = authObj ? authObj.cookie : (readStore(STORE.cookie) || '');
   const ts = Date.now();
   const nonce = randomDigits(8);
-  const pathname = kind === 'fee'
-    ? '/biz-orange/BN/realFeeQuery/getRealFee'
-    : '/biz-orange/BH/newPlanRemainQry/getNewPlanRemainQry';
+  const pathname = kind === 'fee' ? '/biz-orange/BN/realFeeQuery/getRealFee' : '/biz-orange/BH/newPlanRemainQry/getNewPlanRemainQry';
 
   const bodyObj = Object.assign({}, params, { reqBody: { cellNum: targetPhone }, t: cookie });
   if (kind === 'fee') bodyObj.nt = '5';
@@ -563,7 +485,6 @@ function buildQuery(params, kind, targetPhone, authObj) {
 
   const xk = params.xk || '';
   const tokenEnc = cmEncrypt(`${xk}_${pathname}_${ts}_${nonce}`, REQ1_KEY, DEFAULT_IV);
-
   const m = cookie.match(/JSESSIONID=(.+?);/);
   const jsid = m ? m[1] : 'null';
   const xsign = cmMd5(`${tokenEnc}_${ts}_${nonce}_${jsid}`);
@@ -582,11 +503,7 @@ function buildQuery(params, kind, targetPhone, authObj) {
     'x-time': String(ts),
     'Sec-Fetch-Des': 'empty',
   };
-  return {
-    url: `https://app.10086.cn${pathname}?` + encodeURI(cookie),
-    headers,
-    body: encBody,
-  };
+  return { url: `https://app.10086.cn${pathname}?` + encodeURI(cookie), headers, body: encBody };
 }
 
 function absorbSetCookie(headers, phone) {
@@ -615,11 +532,7 @@ async function autoRefreshSession(phone) {
   
   const lastKey = auth ? `cm_refresh_ts_${phone}` : STORE.refreshTs;
   const last = parseInt(readStore(lastKey) || '0', 10);
-  
-  if (Date.now() - last < 1 * 60 * 1000) {
-    console.log(`[保活-续期] 账号 ${phone} 距上次刷新不到1分钟，跳过。`);
-    return false;
-  }
+  if (Date.now() - last < 1 * 60 * 1000) return false;
   writeStore(String(Date.now()), lastKey);
 
   let headers = {};
@@ -633,57 +546,39 @@ async function autoRefreshSession(phone) {
   const oldCookie = auth ? auth.cookie : (readStore(STORE.cookie) || '');
   if (oldCookie) headers['Cookie'] = oldCookie;
 
-  console.log(`[保活-续期] 尝试为账号 ${phone} 发起刷新请求...`);
   try {
     const resp = await httpRequest({ url, headers, body, timeout: 15000 });
-    
     let plainBody = resp.body;
     try {
       const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
-      if (xpen === '1') { plainBody = cmDecrypt(JSON.parse(resp.body).body, RESP1_KEY, DEFAULT_IV); }
-      else if (xpen === '2') { plainBody = cmDecrypt(resp.body, RESP2_KEY, DEFAULT_IV); }
-      else if (xpen === '14') { plainBody = cmDecrypt(resp.body, RESP14_KEY, RESP14_IV); }
+      if (xpen === '1') plainBody = cmDecrypt(JSON.parse(resp.body).body, RESP1_KEY, DEFAULT_IV);
+      else if (xpen === '2') plainBody = cmDecrypt(resp.body, RESP2_KEY, DEFAULT_IV);
+      else if (xpen === '14') plainBody = cmDecrypt(resp.body, RESP14_KEY, RESP14_IV);
     } catch(e) {}
-
-    console.log(`[保活-续期] 账号 ${phone} 续期请求响应码: ${resp ? resp.status : '无'}`);
     
     const isSuccessText = !plainBody.includes('失效') && !plainBody.includes('过期') && !plainBody.includes('失败') && !plainBody.includes('未登录') && !plainBody.includes('重新登录') && !plainBody.includes('410000');
     const success = !!resp && resp.status === 200 && isSuccessText;
-    
-    if (success) {
-      absorbSetCookie(resp.headers, phone);
-    }
-    console.log(`[保活-续期] 最终判定刷新状态: ${success}`);
+    if (success) absorbSetCookie(resp.headers, phone);
     return success;
   } catch (e) {
-    console.log(`[保活-续期] 账号 ${phone} 续期发生网络异常: ${e.message || e}`);
     return false;
   }
 }
 
 async function queryKind(kind, phone) {
-  console.log(`[查询] 正在获取账号 ${phone} 的 ${kind} 接口数据...`);
   const multiAuth = safeReadJSON(STORE.multiAuth);
   let auth = multiAuth[phone];
 
   let enc = auth ? auth.paramsEnc : (readStore(STORE.paramsEnc) || '');
   let xqen = auth ? (auth.xqen || '').trim() : (readStore(STORE.xqen) || '').trim();
+  if (!enc || !REQ_KEY[xqen]) throw new Error('no-params');
 
-  if (!enc || !REQ_KEY[xqen]) {
-    const e = new Error('no-params');
-    e.stage = 'capture';
-    throw e;
-  }
   const plain = cmDecrypt(enc, REQ_KEY[xqen], REQ_IV[xqen]);
   const params = JSON.parse(plain);
   const q = buildQuery(params, kind, phone, auth);
   const resp = await httpRequest({ url: q.url, headers: q.headers, body: q.body, timeout: 15000 });
 
-  if (!resp || resp.status !== 200) {
-    const e = new Error(`HTTP ${resp ? resp.status : '无响应'}`);
-    e.stage = 'network';
-    throw e;
-  }
+  if (!resp || resp.status !== 200) throw new Error(`HTTP ${resp ? resp.status : '无响应'}`);
   absorbSetCookie(resp.headers, phone);
   const text = String(resp.body || '');
   const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
@@ -700,9 +595,7 @@ async function queryKind(kind, phone) {
       data = JSON.parse(text);
     }
   } catch (e) {
-    const err = new Error('decrypt-failed');
-    err.stage = 'decrypt';
-    throw err;
+    throw new Error('decrypt-failed');
   }
   return data;
 }
@@ -724,16 +617,11 @@ function deepFindAllFlows(obj, out, seen) {
 
   if (Array.isArray(obj)) {
     for (const item of obj) {
-      if (item && typeof item === 'object' && item.flowRemainNum !== undefined) {
-        out.push(item);
-      } else {
-        deepFindAllFlows(item, out, seen);
-      }
+      if (item && typeof item === 'object' && item.flowRemainNum !== undefined) out.push(item);
+      else deepFindAllFlows(item, out, seen);
     }
   } else {
-    for (const k of Object.keys(obj)) {
-      deepFindAllFlows(obj[k], out, seen);
-    }
+    for (const k of Object.keys(obj)) deepFindAllFlows(obj[k], out, seen);
   }
 }
 
@@ -833,44 +721,36 @@ async function fetchAccountData(phone) {
 
   let ds = await fetchSingle();
   if (!ds.valid) {
-    console.log(`[处理] 账号 ${phone} 初次数据无效或鉴权失败，尝试自动续期...`);
     const refreshed = await autoRefreshSession(phone);
-    if (refreshed) {
-      console.log(`[处理] 账号 ${phone} 续期成功，重新拉取最新数据。`);
-      ds = await fetchSingle();
-    } else {
-      console.log(`[处理] 账号 ${phone} 续期失败或仍在冷却时间内。`);
-    }
+    if (refreshed) ds = await fetchSingle();
   }
   if (!ds.valid) throw new Error('登录态失效');
   return ds;
 }
 
 async function loadMultiData(accounts) {
-  console.log(`[拉取] 准备处理账号列表，共 ${accounts.length} 个账号...`);
   const hasParams = !!(readStore(STORE.paramsEnc));
   if (!hasParams) return { configured: false, reason: 'capture' };
   if (!accounts || accounts.length === 0) return { configured: false, reason: 'phone' };
 
   let cachedMap = safeReadJSON(STORE.multiDs);
-
   const results = [];
   let hasUpdated = false;
 
   for (const acc of accounts) {
-    console.log(`[拉取] 开始处理账号: ${acc.label} (${acc.phone})`);
     try {
       const ds = await fetchAccountData(acc.phone);
       ds.phone = acc.phone;
       ds.label = acc.label;
+      ds.updatedAt = Date.now();
       results.push({ label: acc.label, phone: acc.phone, ds, success: true });
       cachedMap[acc.phone] = ds;
       hasUpdated = true;
-      console.log(`[拉取] 账号 ${acc.phone} 成功拉取到最新数据`);
     } catch (e) {
-      console.log(`[拉取] 账号 ${acc.phone} 网络拉取失败，尝试使用本地缓存。错误: ${e.message}`);
       if (cachedMap[acc.phone]) {
-        results.push({ label: acc.label, phone: acc.phone, ds: cachedMap[acc.phone], success: true, fromCache: true });
+        const fallbackDs = cachedMap[acc.phone];
+        fallbackDs.stale = '缓存';
+        results.push({ label: acc.label, phone: acc.phone, ds: fallbackDs, success: true, fromCache: true });
       } else {
         results.push({ label: acc.label, phone: acc.phone, success: false, error: e.message || '查询失败' });
       }
@@ -881,14 +761,19 @@ async function loadMultiData(accounts) {
     writeStore(JSON.stringify(cachedMap), STORE.multiDs);
     results.forEach((item, idx) => {
       if (item.ds) {
-        writeStore(JSON.stringify(item.ds), `cm_data_slot_${idx + 1}`);
-        writeStore(JSON.stringify(item.ds), `cm_data_slot_${item.phone}`);
+        const payload = JSON.stringify(item.ds);
+        writeStore(payload, `cm_data_slot_${idx + 1}`);
+        writeStore(payload, `cm_data_slot_${item.phone}`);
+        writeStore(payload, `cm_card_${idx + 1}`);
+        writeStore(payload, `cm_card_${item.phone}`);
       }
     });
     if (results[0] && results[0].ds) {
-      writeStore(JSON.stringify(results[0].ds), 'cm_data_slot_1');
+      const primaryPayload = JSON.stringify(results[0].ds);
+      writeStore(primaryPayload, 'cm_data_slot_1');
+      writeStore(primaryPayload, 'cm_card_1');
+      writeStore(primaryPayload, 'cm_datasource');
     }
-    console.log(`[缓存] 最新数据已覆盖本地持久化存储。`);
   }
 
   return { configured: true, results };
@@ -937,11 +822,7 @@ function getVisualWidth(str) {
   let len = 0;
   for (let i = 0; i < str.length; i++) {
     const c = str.charCodeAt(i);
-    if ((c >= 0x4e00 && c <= 0x9fa5) || (c >= 0xff00 && c <= 0xffef)) {
-      len += 2;
-    } else {
-      len += 1;
-    }
+    len += ((c >= 0x4e00 && c <= 0x9fa5) || (c >= 0xff00 && c <= 0xffef)) ? 2 : 1;
   }
   return len;
 }
@@ -1038,11 +919,8 @@ async function keepAliveTask() {
   
   if (accounts.length === 0) {
     const autoAccs = getAutoAccounts();
-    if (autoAccs.length > 0) {
-      console.log(`[任务] 模块参数未填，自动从本地读取已抓取的 ${autoAccs.length} 个账号...`);
-      accounts.push(...autoAccs);
-    } else {
-      console.log(`[任务] 警告：没有可用账号参数或缓存的主账号，任务将被跳过。`);
+    if (autoAccs.length > 0) accounts.push(...autoAccs);
+    else {
       $done({});
       return;
     }
@@ -1065,20 +943,13 @@ try {
 
   if (isReq || isResp) {
     const url = $request ? ($request.url || '') : '';
-    if (isResp && isAutoLogin(url)) {
-      handleResponseCapture();
-    } else if (isReq && !isResp && isAutoLogin(url)) {
-      handleRequestCapture();
-    } else {
-      $done({});
-    }
+    if (isResp && isAutoLogin(url)) handleResponseCapture();
+    else if (isReq && !isResp && isAutoLogin(url)) handleRequestCapture();
+    else $done({});
   } else {
     const args = parseArguments();
-    if (isLoonCron || args.action === 'task') {
-      keepAliveTask();
-    } else {
-      renderPanel();
-    }
+    if (isLoonCron || args.action === 'task') keepAliveTask();
+    else renderPanel();
   }
 } catch (globalErr) {
   if (typeof $request === 'undefined') {$done({
