@@ -520,7 +520,7 @@ function handleRequestCapture() {
   writeStore(String(Date.now()), STORE.loginTs);
 
   if (autoPhone && /^\d{11}$/.test(autoPhone)) {
-    notify('中国移动', `多卡捕获成功: ${autoPhone}`, '独立凭证已安全存储');
+    notify('中国移动', `捕获成功: ${autoPhone}`, '独立凭证已安全存储');
   } else {
     notify('中国移动', '登录参数捕获成功', '小组件多账号已就绪');
   }
