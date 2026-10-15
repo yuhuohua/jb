@@ -1,10 +1,12 @@
-[filter_local]
-host-keyword, 917api., reject
-host, sc.ffsevhuy.com, reject
+/**
+ * 一个one拦截开屏，弹窗广告。
+ */
 
-[rewrite_local]
-^https?:\/\/api\.[a-z0-9-]+\.com\/v2\.5\/ad\/space url reject-200
-^https?:\/\/api\.[a-z0-9-]+\.com\/v2\.5\/my\/unread url reject-200
+[Rule]
+DOMAIN-KEYWORD,917api.,REJECT
+DOMAIN,sc.ffsevhuy.com,REJECT
+URL-REGEX,^https?:\/\/api\.[a-z0-9-]+\.com\/v2\.5\/ad\/space,REJECT
+URL-REGEX,^https?:\/\/api\.[a-z0-9-]+\.com\/v2\.5\/my\/unread,REJECT
 
-[mitm]
-hostname = api.*.com
+[MITM]
+hostname = %APPEND% api.*.com
