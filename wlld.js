@@ -21,14 +21,12 @@ function adapter() {
   // 1. 获取本地网络信息
   const getNetwork = () => {
     let info = { internalIP: "未知", gatewayIP: "未知", wifiSsid: null };
-    if (typeof $network !== "undefined") { // Surge & Loon
-      if ($network.v4) {
-        info.internalIP = $network.v4.primaryAddress || "未知";
-        info.gatewayIP = $network.v4.primaryRouter || "未知";
-      }
+    // Surge 支持直接读取
+    if (typeof $network !== "undefined" && $network.v4) { 
+      info.internalIP = $network.v4.primaryAddress || "未知";
+      info.gatewayIP = $network.v4.primaryRouter || "未知";
       if ($network.wifi) info.wifiSsid =$network.wifi.ssid;
     }
-    // 注：QX 脚本内无法直接读取局域网 IP 和 SSID，将显示为“未知”或交由前端处理
     return info;
   };
 
@@ -38,15 +36,15 @@ function adapter() {
       if (isQX) {
         if (typeof opts === "string") opts = { url: opts };
         opts.method = "GET";
-        opts.timeout = TIMEOUT; // QX 是毫秒
+        opts.timeout = TIMEOUT; 
         $task.fetch(opts).then(
           (resp) => resolve({ status: resp.statusCode, body: resp.body }),
           (err) => reject(err.error)
         );
       } else {
         let reqOpts = typeof opts === "string" ? { url: opts } : opts;
-        reqOpts.timeout = TIMEOUT / 1000; // Surge/Loon 是秒
-        if (isLoon && reqOpts.policy) reqOpts.node = reqOpts.policy; // Loon 策略键名为 node
+        reqOpts.timeout = TIMEOUT / 1000; 
+        if (isLoon && reqOpts.policy) reqOpts.node = reqOpts.policy; // Loon 的策略参数名是 node
         $httpClient.get(reqOpts, (error, response, body) => {
           if (error) reject(error);
           else resolve({ status: response.status, body: body });
@@ -58,7 +56,7 @@ function adapter() {
   // 3. 终结请求并返回 Mock 响应
   const done = (result) => {
     let resp = { status: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };
-    if (isQX) resp.status = "HTTP/1.1 200 OK"; // QX 需完整的 HTTP 状态码头
+    if (isQX) resp.status = "HTTP/1.1 200 OK"; 
     $done({ response: resp });
   };
 
