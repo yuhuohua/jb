@@ -11,11 +11,6 @@ const isLoon = typeof $loon !== "undefined";
 const isSurge = typeof $httpClient !== "undefined" && !isLoon;
 const isQX = typeof $task !== "undefined";
 
-const TIMEOUT = 3500;
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-};
-
 function adapter() {
   const getNetwork = () => {
     let info = { internalIP: "未知", gatewayIP: "未知", wifiSsid: null };
@@ -28,21 +23,26 @@ function adapter() {
   };
 
   const get = (opts) => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+      let reqOpts = {
+        url: opts.url,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+        timeout: isQX ? 5000 : 5 
+      };
+      
       if (isQX) {
-        if (typeof opts === "string") opts = { url: opts };
-        opts.method = "GET";
-        opts.timeout = TIMEOUT; 
-        $task.fetch(opts).then(
+        reqOpts.method = "GET";
+        $task.fetch(reqOpts).then(
           (resp) => resolve({ status: resp.statusCode, body: resp.body }),
-          (err) => reject(err.error)
+          (err) => resolve({ status: 0, error: err.error })
         );
       } else {
-        let reqOpts = typeof opts === "string" ? { url: opts } : opts;
-        reqOpts.timeout = TIMEOUT / 1000; 
-        if (isLoon && reqOpts.policy) reqOpts.node = reqOpts.policy; // Loon 的策略参数名是 node
+        if (opts.policy) {
+          if (isLoon) reqOpts.node = opts.policy; // Loon 策略指定用 node
+          else reqOpts.policy = opts.policy;      // Surge 用 policy
+        }
         $httpClient.get(reqOpts, (error, response, body) => {
-          if (error) reject(error);
+          if (error) resolve({ status: 0, error: error });
           else resolve({ status: response.status, body: body });
         });
       }
@@ -60,40 +60,32 @@ function adapter() {
 
 const $ = adapter();
 
-const httpGet = (url, policy) => {
-  return new Promise((resolve) => {
-    let opts = { url, headers: HEADERS };
-    if (policy) opts.policy = policy; 
-    let start = Date.now();
-    
-    $.get(opts).then((resp) => {
-      let time = Date.now() - start;
-      try {
-        resolve({ 
-          data: JSON.parse(resp.body), 
-          ping: time, 
-          code: (resp.status == 200 || resp.status == 204) ? 'OK' : 'ERR',
-          ms: time,
-          status: resp.status
-        });
-      } catch(e) {
-        resolve({ data: resp.body, ping: time, code: 'OK', ms: time, status: resp.status });
-      }
-    }).catch((err) => {
-      resolve({ data: {}, ping: 0, code: 'ERR', ms: 0, status: 0 });
-    });
-  });
+const httpGet = async (url, policy) => {
+  let start = Date.now();
+  let resp = await $.get({ url, policy });
+  let ms = Date.now() - start;
+  
+  if (resp.error || !resp.status) {
+    return { data: {}, ping: 0, code: 'ERR', ms: 0, status: 0 };
+  }
+  
+  let code = (resp.status == 200 || resp.status == 204) ? 'OK' : 'ERR';
+  try {
+    return { data: JSON.parse(resp.body), ping: ms, code, ms, status: resp.status };
+  } catch(e) {
+    return { data: resp.body, ping: ms, code: 'OK', ms, status: resp.status };
+  }
 };
 
-const checkStatus = (url, expectedStatus = [200]) => {
-  return new Promise((resolve) => {
-    let start = Date.now();
-    $.get({ url, headers: HEADERS }).then((resp) => {
-      resolve({ code: expectedStatus.includes(resp.status) ? 'OK' : 'ERR', ms: Date.now() - start });
-    }).catch((err) => {
-      resolve({ code: 'ERR', ms: 0 });
-    });
-  });
+const checkStatus = async (url, expectedStatus = [200]) => {
+  let start = Date.now();
+  let resp = await $.get({ url });
+  let ms = Date.now() - start;
+  
+  if (resp.error || !resp.status) {
+    return { code: 'ERR', ms: 0 };
+  }
+  return { code: expectedStatus.includes(resp.status) ? 'OK' : 'ERR', ms };
 };
 
 (async () => {
@@ -126,15 +118,15 @@ const checkStatus = (url, expectedStatus = [200]) => {
       },
       local: localResp,
       node: nodeResp,
-      pure: pureResp.data,
-      ipv6: ipv6Resp.data,
+      pure: pureResp?.data || {},
+      ipv6: ipv6Resp?.data || {},
       unlocks: { yt, nf, dp, sp, gpt, cl, gm, gk }
     };
 
     $.done(result);
 
   } catch (err) {
-    let resp = { status: 500, body: JSON.stringify({ error: err.message }) };
+    let resp = { status: 500, body: JSON.stringify({ error: err.message || String(err) }) };
     if (isQX) resp.status = "HTTP/1.1 500 Internal Server Error";
     $done({ response: resp });
   }
