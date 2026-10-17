@@ -5,16 +5,12 @@
 
 [mitm]
 hostname = netradar.qx.api
- * NetRadar 后端数据提供端 (调试打印版)
- * 加入了详细的日志输出，方便在 Loon/Surge/QX 中排查网络请求失败原因
+ * NetRadar 后端数据提供端 (Surge / Loon / Quantumult X 分批抗并发版)
  */
 
 const isLoon = typeof $loon !== "undefined";
 const isSurge = typeof $httpClient !== "undefined" && !isLoon;
 const isQX = typeof $task !== "undefined";
-
-console.log("========== NetRadar 后端脚本开始执行 ==========");
-console.log(`[环境信息] 客户端: ${isLoon ? "Loon" : isSurge ? "Surge" : isQX ? "Quantumult X" : "Unknown"}`);
 
 // --- 三端 API 适配器 ---
 function adapter() {
@@ -25,7 +21,6 @@ function adapter() {
       info.gatewayIP = $network.v4.primaryRouter || "未知";
       if ($network.wifi) info.wifiSsid =$network.wifi.ssid;
     }
-    console.log(`[网络环境] IP: ${info.internalIP}, Gateway: ${info.gatewayIP}, SSID: ${info.wifiSsid}`);
     return info;
   };
 
@@ -34,22 +29,15 @@ function adapter() {
       let reqOpts = {
         url: opts.url,
         headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
-        timeout: isQX ? 5000 : 5 // QX 毫秒，Loon/Surge 秒
+        // 💡 针对 Loon 延长超时时间，防止排队等待导致超时
+        timeout: isQX ? 10000 : 10 
       };
       
-      console.log(`[发起请求] -> URL: ${opts.url} | 策略: ${opts.policy || "默认"}`);
-
       if (isQX) {
         reqOpts.method = "GET";
         $task.fetch(reqOpts).then(
-          (resp) => {
-            console.log(`[请求成功] <- URL: ${opts.url} | 状态码: ${resp.statusCode}`);
-            resolve({ status: resp.statusCode, body: resp.body });
-          },
-          (err) => {
-            console.log(`[请求失败] <- URL: ${opts.url} | 错误信息: ${JSON.stringify(err.error)}`);
-            resolve({ status: 0, error: err.error });
-          }
+          (resp) => resolve({ status: resp.statusCode, body: resp.body }),
+          (err) => resolve({ status: 0, error: err.error })
         );
       } else {
         if (opts.policy) {
@@ -57,20 +45,14 @@ function adapter() {
           else reqOpts.policy = opts.policy;      
         }
         $httpClient.get(reqOpts, (error, response, body) => {
-          if (error) {
-            console.log(`[请求报错] <- URL: ${opts.url} | 错误信息: ${error}`);
-            resolve({ status: 0, error: error });
-          } else {
-            console.log(`[请求成功] <- URL: ${opts.url} | 状态码: ${response.status}`);
-            resolve({ status: response.status, body: body });
-          }
+          if (error) resolve({ status: 0, error: error });
+          else resolve({ status: response.status, body: body });
         });
       }
     });
   };
 
   const done = (result) => {
-    console.log("========== NetRadar 后端脚本执行完毕 ==========");
     let resp = { status: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };
     if (isQX) resp.status = "HTTP/1.1 200 OK"; 
     $done({ response: resp });
@@ -114,26 +96,37 @@ const checkStatus = async (url, expectedStatus = [200]) => {
   try {
     const netInfo = $.getNetwork();
     
-    // 并发请求
+    // 💡 解决 Loon 并发崩溃问题：将所有任务打包
+    const tasks = [
+      () => httpGet('https://myip.ipip.net/json', 'DIRECT'),
+      () => httpGet(`http://ip-api.com/json/?lang=zh-CN&_t=${Date.now()}`),
+      () => httpGet('https://my.ippure.com/v1/info'),
+      () => httpGet('https://api64.ipify.org?format=json'),
+      () => checkStatus('https://www.youtube.com/generate_204', [204]),
+      () => checkStatus('https://www.netflix.com/generate_204', [204, 200]),
+      () => checkStatus('https://www.disneyplus.com/', [200, 301, 302]),
+      () => checkStatus('https://open.spotify.com/', [200]),
+      () => checkStatus('https://chatgpt.com/', [200, 302, 401, 404]),
+      () => checkStatus('https://api.anthropic.com/', [401, 404, 200]),
+      () => checkStatus('https://generativelanguage.googleapis.com/v1beta/models', [200, 403]),
+      () => checkStatus('https://grok.com/', [200])
+    ];
+
+    const results = [];
+    // 💡 核心机制：每次只同时发起 3 个请求，分批执行，防止 Loon 拥堵
+    for (let i = 0; i < tasks.length; i += 3) {
+      const batch = tasks.slice(i, i + 3).map(task => task());
+      const batchResults = await Promise.all(batch);
+      results.push(...batchResults);
+    }
+
+    // 按顺序解构返回的结果
     const [
       localResp, nodeResp, pureResp, ipv6Resp,
       yt, nf, dp, sp, gpt, cl, gm, gk
-    ] = await Promise.all([
-      httpGet('https://myip.ipip.net/json', 'DIRECT'),
-      httpGet(`http://ip-api.com/json/?lang=zh-CN&_t=${Date.now()}`),
-      httpGet('https://my.ippure.com/v1/info'),
-      httpGet('https://api64.ipify.org?format=json'),
-      checkStatus('https://www.youtube.com/generate_204', [204]),
-      checkStatus('https://www.netflix.com/generate_204', [204, 200]),
-      checkStatus('https://www.disneyplus.com/', [200, 301, 302]),
-      checkStatus('https://open.spotify.com/', [200]),
-      checkStatus('https://chatgpt.com/', [200, 302, 401, 404]),
-      checkStatus('https://api.anthropic.com/', [401, 404, 200]),
-      checkStatus('https://generativelanguage.googleapis.com/v1beta/models', [200, 403]),
-      checkStatus('https://grok.com/', [200])
-    ]);
+    ] = results;
 
-    const result = {
+    const finalResult = {
       device: {
         internalIP: netInfo.internalIP,
         gatewayIP: netInfo.gatewayIP,
@@ -146,10 +139,9 @@ const checkStatus = async (url, expectedStatus = [200]) => {
       unlocks: { yt, nf, dp, sp, gpt, cl, gm, gk }
     };
 
-    $.done(result);
+    $.done(finalResult);
 
   } catch (err) {
-    console.log(`[致命错误] 脚本崩溃: ${err.message || String(err)}`);
     let resp = { status: 500, body: JSON.stringify({ error: err.message || String(err) }) };
     if (isQX) resp.status = "HTTP/1.1 500 Internal Server Error";
     $done({ response: resp });
