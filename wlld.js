@@ -5,12 +5,18 @@
 
 [mitm]
 hostname = netradar.qx.api
+ * NetRadar 后端数据提供端 (调试打印版)
+ * 加入了详细的日志输出，方便在 Loon/Surge/QX 中排查网络请求失败原因
  */
 
 const isLoon = typeof $loon !== "undefined";
 const isSurge = typeof $httpClient !== "undefined" && !isLoon;
 const isQX = typeof $task !== "undefined";
 
+console.log("========== NetRadar 后端脚本开始执行 ==========");
+console.log(`[环境信息] 客户端: ${isLoon ? "Loon" : isSurge ? "Surge" : isQX ? "Quantumult X" : "Unknown"}`);
+
+// --- 三端 API 适配器 ---
 function adapter() {
   const getNetwork = () => {
     let info = { internalIP: "未知", gatewayIP: "未知", wifiSsid: null };
@@ -19,6 +25,7 @@ function adapter() {
       info.gatewayIP = $network.v4.primaryRouter || "未知";
       if ($network.wifi) info.wifiSsid =$network.wifi.ssid;
     }
+    console.log(`[网络环境] IP: ${info.internalIP}, Gateway: ${info.gatewayIP}, SSID: ${info.wifiSsid}`);
     return info;
   };
 
@@ -27,29 +34,43 @@ function adapter() {
       let reqOpts = {
         url: opts.url,
         headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
-        timeout: isQX ? 5000 : 5 
+        timeout: isQX ? 5000 : 5 // QX 毫秒，Loon/Surge 秒
       };
       
+      console.log(`[发起请求] -> URL: ${opts.url} | 策略: ${opts.policy || "默认"}`);
+
       if (isQX) {
         reqOpts.method = "GET";
         $task.fetch(reqOpts).then(
-          (resp) => resolve({ status: resp.statusCode, body: resp.body }),
-          (err) => resolve({ status: 0, error: err.error })
+          (resp) => {
+            console.log(`[请求成功] <- URL: ${opts.url} | 状态码: ${resp.statusCode}`);
+            resolve({ status: resp.statusCode, body: resp.body });
+          },
+          (err) => {
+            console.log(`[请求失败] <- URL: ${opts.url} | 错误信息: ${JSON.stringify(err.error)}`);
+            resolve({ status: 0, error: err.error });
+          }
         );
       } else {
         if (opts.policy) {
-          if (isLoon) reqOpts.node = opts.policy; // Loon 策略指定用 node
-          else reqOpts.policy = opts.policy;      // Surge 用 policy
+          if (isLoon) reqOpts.node = opts.policy; 
+          else reqOpts.policy = opts.policy;      
         }
         $httpClient.get(reqOpts, (error, response, body) => {
-          if (error) resolve({ status: 0, error: error });
-          else resolve({ status: response.status, body: body });
+          if (error) {
+            console.log(`[请求报错] <- URL: ${opts.url} | 错误信息: ${error}`);
+            resolve({ status: 0, error: error });
+          } else {
+            console.log(`[请求成功] <- URL: ${opts.url} | 状态码: ${response.status}`);
+            resolve({ status: response.status, body: body });
+          }
         });
       }
     });
   };
 
   const done = (result) => {
+    console.log("========== NetRadar 后端脚本执行完毕 ==========");
     let resp = { status: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };
     if (isQX) resp.status = "HTTP/1.1 200 OK"; 
     $done({ response: resp });
@@ -60,6 +81,7 @@ function adapter() {
 
 const $ = adapter();
 
+// --- 核心测试逻辑 ---
 const httpGet = async (url, policy) => {
   let start = Date.now();
   let resp = await $.get({ url, policy });
@@ -92,6 +114,7 @@ const checkStatus = async (url, expectedStatus = [200]) => {
   try {
     const netInfo = $.getNetwork();
     
+    // 并发请求
     const [
       localResp, nodeResp, pureResp, ipv6Resp,
       yt, nf, dp, sp, gpt, cl, gm, gk
@@ -126,6 +149,7 @@ const checkStatus = async (url, expectedStatus = [200]) => {
     $.done(result);
 
   } catch (err) {
+    console.log(`[致命错误] 脚本崩溃: ${err.message || String(err)}`);
     let resp = { status: 500, body: JSON.stringify({ error: err.message || String(err) }) };
     if (isQX) resp.status = "HTTP/1.1 500 Internal Server Error";
     $done({ response: resp });
