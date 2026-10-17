@@ -16,12 +16,9 @@ const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
 };
 
-// --- 三端 API 适配器 ---
 function adapter() {
-  // 1. 获取本地网络信息
   const getNetwork = () => {
     let info = { internalIP: "未知", gatewayIP: "未知", wifiSsid: null };
-    // Surge 支持直接读取
     if (typeof $network !== "undefined" && $network.v4) { 
       info.internalIP = $network.v4.primaryAddress || "未知";
       info.gatewayIP = $network.v4.primaryRouter || "未知";
@@ -30,7 +27,6 @@ function adapter() {
     return info;
   };
 
-  // 2. 发起网络请求
   const get = (opts) => {
     return new Promise((resolve, reject) => {
       if (isQX) {
@@ -53,7 +49,6 @@ function adapter() {
     });
   };
 
-  // 3. 终结请求并返回 Mock 响应
   const done = (result) => {
     let resp = { status: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };
     if (isQX) resp.status = "HTTP/1.1 200 OK"; 
@@ -65,7 +60,6 @@ function adapter() {
 
 const $ = adapter();
 
-// --- 核心测试逻辑 ---
 const httpGet = (url, policy) => {
   return new Promise((resolve) => {
     let opts = { url, headers: HEADERS };
@@ -106,7 +100,6 @@ const checkStatus = (url, expectedStatus = [200]) => {
   try {
     const netInfo = $.getNetwork();
     
-    // 并发请求获取 IP 信息和流媒体/AI解锁状态
     const [
       localResp, nodeResp, pureResp, ipv6Resp,
       yt, nf, dp, sp, gpt, cl, gm, gk
