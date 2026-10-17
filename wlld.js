@@ -44,16 +44,19 @@ const checkStatus = (url, expectedStatus = [200], policy) => {
 
 (async () => {
   try {
+    // 获取 arguments 传进来的策略组参数，留空则为 undefined（走默认分流）
     let userPolicy = (typeof $argument !== "undefined" && $argument.trim() !== "") ? $argument.trim() : undefined;
 
+    // 获取 Surge 本地网络信息
     const v4 = $network.v4 || {};
     const wifi = $network.wifi || {};
-   
+    
+    // 并发请求获取 IP 信息和流媒体/AI解锁状态
     const [
       localResp, nodeResp, pureResp, ipv6Resp,
       yt, nf, dp, sp, gpt, cl, gm, gk
     ] = await Promise.all([
-      httpGet('https://myip.ipip.net/json', 'DIRECT'), 
+      httpGet('https://myip.ipip.net/json', 'DIRECT'), // 本地网络强制直连
       httpGet(`http://ip-api.com/json/?lang=zh-CN&_t=${Date.now()}`, userPolicy),
       httpGet('https://my.ippure.com/v1/info', userPolicy),
       httpGet('https://api64.ipify.org?format=json', userPolicy),
