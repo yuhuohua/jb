@@ -1,18 +1,4 @@
 /**
-【Surge脚本配置】
-[Script]
-网络雷达 = type=http-request, pattern=^http://netradar\.surge\.api, requires-body=1, max-size=0, script-path= https://raw.githubusercontent.com/yuhuohua/jb/refs/heads/main/wlld.js
-
-[MITM]
-hostname = %APPEND% netradar.surge.api
-ニニニニニニニニニニニニニニニニニニ
-【Loon脚本配置】
-[Script]
-http-request ^http://netradar\.loon\.api script-path= https://raw.githubusercontent.com/yuhuohua/jb/refs/heads/main/wlld.js, requires-body=true, timeout=10, tag=网络雷达
-
-[MITM]
-hostname = netradar.loon.api
-ニニニニニニニニニニニニニニニニニニニ
 【 OX 脚本配置】
 [rewrite_local]
 ^http://netradar\.qx\.api url script-request-header https://raw.githubusercontent.com/yuhuohua/jb/refs/heads/main/wlld.js
