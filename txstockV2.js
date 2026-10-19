@@ -32,15 +32,26 @@ hostname = wzq.tenpay.com
 const jsname = '腾讯自选股V2'
 const $ = new Env('腾讯自选股v2');
 
-const notifyFlag = 1; //0为关闭通知，1为打开通知,默认为1
+// ====== 解析 Surge Argument 面板传参 ======
+let args = {};
+if (typeof $argument !== "undefined" && $argument) {
+    $argument.split("&").forEach(item => {
+        let [key, val] = item.split("=");
+        if (key && val) args[key] = val;
+    });
+}
+// =========================================
+
+const notifyFlag = args.notifyFlag !== undefined ? parseInt(args.notifyFlag) : 1; //0为关闭通知，1为打开通知,默认为1
 let notifyStr = ''
 
 let envSplitor = ['\n', '@', '#']
 let httpResult //global buffer
 
-let withdrawCash = ($.isNode() ? (process.env.TxStockCash) : ($.getval('TxStockCash'))) || 5; //0为不自动提现,1为自动提现1元,5为自动提现5元
-let helpFlag = ($.isNode() ? (process.env.TxStockHelp) : ($.getval('TxStockHelp'))) || 1; //0为不做分享助力任务，1为多用户互相分享助力
-let newbieFlag = ($.isNode() ? (process.env.TxStockNewbie) : ($.getval('TxStockNewbie'))) || 0; //0为不做新手任务，1为自动做新手任务
+// 优先读取 Surge 参数 -> 然后尝试环境变量/BoxJs存储 -> 最后使用默认值
+let withdrawCash = args.withdrawCash !== undefined ? parseInt(args.withdrawCash) : (($.isNode() ? (process.env.TxStockCash) : ($.getval('TxStockCash'))) || 5); //0为不自动提现,1为自动提现1元,5为自动提现5元
+let helpFlag = args.helpFlag !== undefined ? parseInt(args.helpFlag) : (($.isNode() ? (process.env.TxStockHelp) : ($.getval('TxStockHelp'))) || 1); //0为不做分享助力任务，1为多用户互相分享助力
+let newbieFlag = args.newbieFlag !== undefined ? parseInt(args.newbieFlag) : (($.isNode() ? (process.env.TxStockNewbie) : ($.getval('TxStockNewbie'))) || 0); //0为不做新手任务，1为自动做新手任务
 let userCookie = ($.isNode() ? process.env.TxStockCookie : $.getdata('TxStockCookie')) || '';
 let userList = []
 
