@@ -1,15 +1,19 @@
+// 兼容环境：Surge / Quantumult X / Loon
+const isQuanX = typeof $task !== "undefined";
+const isSurgeOrLoon = typeof $httpClient !== "undefined";
+
 const version = "3.89.0";
 let message = "";
 
 !(async () => {
-  let savedToken = $persistentStore.read("tastien_token") || "";
+  let savedToken = getStore("tastien_token") || "";
   let argToken = typeof $argument !== "undefined" ? $argument : "";
   
   let combinedTokens = [savedToken, argToken].filter(Boolean).join("@");
   
   if (!combinedTokens) {
     console.log("未检测到 user-token，请先打开小程序获取，或在 argument 中填写");
-    $notification.post("🍔 塔斯汀汉堡", "参数缺失", "请先打开小程序获取 Token");
+    notify("🍔 塔斯汀汉堡", "参数缺失", "请先打开小程序获取 Token");
     return;
   }
 
@@ -23,7 +27,7 @@ let message = "";
   }
 
   if (message) {
-    $notification.post("🍔 塔斯汀汉堡签到", "", message.trim());
+    notify("🍔 塔斯汀汉堡签到", "", message.trim());
   }
 })()
   .catch(e => {
@@ -32,8 +36,6 @@ let message = "";
   .finally(() => {
     $done();
   });
-
-
 
 async function runTask(token, index) {
   const headers = {
@@ -117,27 +119,45 @@ async function getActivityId(headers) {
   return null;
 }
 
+// ---------------- 兼容层封装 ----------------
+
+function getStore(key) {
+  if (isQuanX) return $prefs.valueForKey(key);
+  if (isSurgeOrLoon) return $persistentStore.read(key);
+  return null;
+}
+
+function notify(title, subtitle, message) {
+  if (isQuanX) $notify(title, subtitle, message);
+  if (isSurgeOrLoon) $notification.post(title, subtitle, message);
+}
 
 function apiGet(url, headers) {
   return new Promise((resolve) => {
-    $httpClient.get({ url, headers }, (err, resp, data) => {
-      if (err) {
-        resolve(null);
-      } else {
-        try { resolve(JSON.parse(data)); } catch (e) { resolve(null); }
-      }
-    });
+    if (isQuanX) {
+      $task.fetch({ url: url, method: "GET", headers: headers }).then(res => {
+        try { resolve(JSON.parse(res.body)); } catch (e) { resolve(null); }
+      }, err => resolve(null));
+    } else if (isSurgeOrLoon) {
+      $httpClient.get({ url: url, headers: headers }, (err, resp, data) => {
+        if (err) resolve(null);
+        else { try { resolve(JSON.parse(data)); } catch (e) { resolve(null); } }
+      });
+    }
   });
 }
 
 function apiPost(url, body, headers) {
   return new Promise((resolve) => {
-    $httpClient.post({ url, body, headers }, (err, resp, data) => {
-      if (err) {
-        resolve(null);
-      } else {
-        try { resolve(JSON.parse(data)); } catch (e) { resolve(null); }
-      }
-    });
+    if (isQuanX) {
+      $task.fetch({ url: url, method: "POST", headers: headers, body: body }).then(res => {
+        try { resolve(JSON.parse(res.body)); } catch (e) { resolve(null); }
+      }, err => resolve(null));
+    } else if (isSurgeOrLoon) {
+      $httpClient.post({ url: url, headers: headers, body: body }, (err, resp, data) => {
+        if (err) resolve(null);
+        else { try { resolve(JSON.parse(data)); } catch (e) { resolve(null); } }
+      });
+    }
   });
 }
