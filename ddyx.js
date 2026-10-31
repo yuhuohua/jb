@@ -118,13 +118,22 @@ async function runAccount(tokenStr, index) {
             }
 
             if (availableTrades.length > 0) {
+                let moneyStr = totalMoney.toFixed(2);
                 let payload = JSON.stringify({
-                    "totalMoney": totalMoney.toFixed(2),
+                    "totalMoney": moneyStr,
                     "type": 1,
                     "withdrawalDetailPojoList": availableTrades
                 });
                 let withdrawRes = await request("POST", `${baseUrl}/api/h/withdrawal`, headers, payload);
-                summary.push(`💸 提现: ${withdrawRes?.msg || withdrawRes?.message || "发起请求"}`);
+                
+                if (withdrawRes && (withdrawRes.code === 0 || withdrawRes.msg === "success" || withdrawRes.message === "success")) {
+                    summary.push(`💸 提现: 提现成功 ${moneyStr} 元`);
+                    console.log(`[${remark}] 💸 提现成功: ${moneyStr} 元`);
+                } else {
+                    let failMsg = withdrawRes?.msg || withdrawRes?.message || "未知原因";
+                    summary.push(`💸 提现: 失败 (${failMsg})`);
+                    console.log(`[${remark}] ❌ 提现失败: ${failMsg}`);
+                }
             } else {
                 summary.push(`💸 提现: 无可用单`);
             }
