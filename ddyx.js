@@ -26,7 +26,7 @@ const LOCK_KEY = "dd1x_grab_lock";
                 $persistentStore.write(tokenArr.join('\n'), STORE_KEY);
                 $persistentStore.write(Date.now().toString(), LOCK_KEY);
                 
-                $notification.post(TITLE, "🎉 成功抓取 Token", `已保存第 ${tokenArr.length} 个账号\n相同账号已拦截并发，不再重复弹窗。`);
+                $notification.post(TITLE, "🎉 成功抓取 Token", `已保存第 ${tokenArr.length} 个账号。`);
                 console.log(`✅ Token 新增成功: ${token.substring(0, 15)}...`);
             } else {
                 console.log("✅ Token 已存在，静默跳过");
