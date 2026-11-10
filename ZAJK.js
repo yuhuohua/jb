@@ -116,7 +116,7 @@ async function runAccount(raw, index) {
 
 	const tokenHeader = buildTokenHeader(at);
 
-	// 1. 用户信息 / CK 校验
+	// 1. 用户信息 
 	const home = await request('post', API.home, tokenHeader, HOME_BODY, '用户信息');
 	if (!isOk(home)) {
 		addLog(`❌ CK 失效`);
@@ -272,12 +272,20 @@ function handleRequest() {
 			let existingRaw = readStore('ZAJK_token') || '';
 			let list = existingRaw.split(/[\n#]+/).map(s => s.trim()).filter(Boolean);
 			
-			if (!list.includes(at)) {
+			let exists = list.some(item => {
+				let pos = item.indexOf('&');
+				let existingToken = (pos === -1 ? item : item.slice(0, pos)).trim();
+				return existingToken === at;
+			});
+			
+			if (!exists) {
 				list.push(at);
 				const newRaw = list.join('\n');
 				writeStore('ZAJK_token', newRaw);
-				console.log(`✅ 成功捕获第 ${list.length} 个 Access-Token 并已存入多账号池`);
-				notify('💊 众安健康 · 抓取成功', `✨ 成功捕获并保存第 ${list.length} 个账号凭证！`);
+				console.log(`✅ 成功捕获新账号 Access-Token 并已存入多账号池 (当前共 ${list.length} 个账号)`);
+				notify('💊 众安健康 · 抓取成功', `✨ 成功捕获并保存新账号凭证！当前共 ${list.length} 个账号`);
+			} else {
+				console.log(`ℹ️ 当前账号 Access-Token 已存在，跳过重复存储`);
 			}
 		}
 	} catch (e) {
