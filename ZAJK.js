@@ -75,71 +75,65 @@ async function main() {
 
 	console.log(`💊 [众安健康] 共找到 ${accounts.length} 个账号 | 自动提现状态: ${withdrawEnabled() ? '🟢 开启' : '🔴 关闭'}`);
 	
-	const allAccountLogs = [];
+	const summaries = [];
 
 	for (let i = 0; i < accounts.length; i++) {
-		const accountTitle = `================ 👤 第 ${i + 1} 个账号 ===============`;
-		console.log(`\n${accountTitle}`);
-		const lines = await runAccount(accounts[i], i + 1);
-		
-		let blockText = [accountTitle];
-		lines.forEach(l => {
-			console.log(l);
-			blockText.push(l);
-		});
-		allAccountLogs.push(blockText.join('\n'));
+		console.log(`\n================ 👤 第 ${i + 1} 个账号 ===============`);
+		const res = await runAccount(accounts[i], i + 1);
+		summaries.push(res.summary);
 	}
 
 	console.log(`\n💊 [众安健康] 所有账号执行完毕`);
 	
 	if (NOTIFY) {
-		const summaryBody = allAccountLogs.join('\n\n');
-		notify('💊 众安健康 · 运行报告', summaryBody);
+		const summaryBody = summaries.join('\n-----------------------------------\n');
+		notify('💊 众安健康的运行报告', summaryBody);
 	}
 }
 
 async function runAccount(raw, index) {
-	const lines = [];
-	const addLog = (text) => {
-		const timeStr = new Date().toTimeString().split(' ')[0] + '.' + String(Date.now()).slice(-6);
-		const logLine = `${timeStr} [账号${index}] ${text}`;
-		lines.push(logLine);
-	};
-
 	const pos = raw.indexOf('&');
 	const at = (pos === -1 ? raw : raw.slice(0, pos)).trim();
 
 	if (!at) {
-		addLog(`❌ 账号 ${index} 缺少 Access-Token`);
-		return lines;
+		console.log(`❌ [账号${index}] 缺少 Access-Token`);
+		return {
+			success: false,
+			summary: `👤 第 ${index} 个账号\n❌ 缺少 Access-Token`
+		};
 	}
 
 	const tokenHeader = buildTokenHeader(at);
 
-	// 1. 用户信息 
+	// 1. 用户信息
 	const home = await request('post', API.home, tokenHeader, HOME_BODY, '用户信息');
 	if (!isOk(home)) {
-		addLog(`❌ CK 失效`);
+		console.log(`❌ [账号${index}] CK 失效：${errText(home)}`);
 		saveResult(false);
-		return lines;
+		return {
+			success: false,
+			summary: `👤 第 ${index} 个账号\n❌ CK 失效`
+		};
 	}
+	console.log(`✅ [账号${index}] CK 有效`);
 	await randWait();
 
 	// 2. 签到
+	let signStatus = '未知';
 	const sign = await request('post', API.sign, tokenHeader, HOME_BODY, '签到');
 	if (isOk(sign)) {
 		const t = sign.result && sign.result.type;
-		addLog(`✨ 签到状态：${t === 1 ? '📅 今日已签到' : '🎉 签到成功'}`);
+		signStatus = t === 1 ? '📅 今日已签到' : '🎉 签到成功';
 	} else {
-		addLog(`⚠️ 签到提示：${errText(sign)}`);
+		signStatus = `失败 (${errText(sign)})`;
 	}
+	console.log(`✨ [账号${index}] 签到状态：${signStatus}`);
 	await randWait();
 
 	// 3. 浏览任务
+	let taskStatus = '暂无任务';
 	const goods = getTaskGoods(home);
-	if (!goods.length) {
-		addLog(`ℹ️ 暂无可做的浏览任务`);
-	} else {
+	if (goods.length > 0) {
 		const total = Math.min(goods.length, MAX_TASK);
 		let success = 0;
 		for (let i = 0; i < total; i++) {
@@ -152,8 +146,9 @@ async function runAccount(raw, index) {
 			if (isOk(res)) success++;
 			await randWait();
 		}
-		addLog(`🎯 浏览任务：成功 ${success}/${total}`);
+		taskStatus = `成功 ${success}/${total}`;
 	}
+	console.log(`🎯 [账号${index}] 浏览任务：${taskStatus}`);
 
 	// 4. 领取奖励（抽奖）
 	const home2 = await request('post', API.home, tokenHeader, HOME_BODY, '用户信息-领奖');
@@ -171,7 +166,7 @@ async function runAccount(raw, index) {
 			if (isOk(res)) got++;
 			await randWait();
 		}
-		if (rewards.length) addLog(`🎁 领奖结果：成功 ${got}/${rewards.length}`);
+		if (rewards.length) console.log(`🎁 [账号${index}] 领奖结果：成功 ${got}/${rewards.length}`);
 	}
 
 	// 5. 提现
@@ -182,10 +177,11 @@ async function runAccount(raw, index) {
 	
 	const sumAwardYuan = (sumAward / 100).toFixed(2);
 	const allowYuan = (allow / 100).toFixed(2);
-	addLog(`💰 累计金额: ${sumAwardYuan} 元 | 可提现金额: ${allowYuan} 元`);
+	console.log(`💰 [账号${index}] 累计金额: ${sumAwardYuan} 元 | 可提现金额: ${allowYuan} 元`);
 
+	let withdrawDesc = '';
 	if (!withdrawEnabled()) {
-		addLog(`🔒 自动提现已关闭`);
+		withdrawDesc = '🔒 自动提现已关闭';
 	} else if (allow >= WITHDRAW_AMOUNT) {
 		const res = await request('post', API.withdraw, tokenHeader, {
 			channelCode: CHANNEL_CODE,
@@ -193,18 +189,30 @@ async function runAccount(raw, index) {
 			amount: WITHDRAW_AMOUNT
 		}, '提现');
 		if (isOk(res)) {
-			addLog(`🎉 提现 5 元成功，请前往微信查看！`);
+			withdrawDesc = '🎉 提现 5 元成功，请前往微信查看！';
+			console.log(`🎉 [账号${index}] 提现 5 元成功！`);
 		} else {
-			addLog(`❌ 提现失败：${errText(res)}`);
+			withdrawDesc = `❌ 提现失败：${errText(res)}`;
+			console.log(`❌ [账号${index}] 提现失败：${errText(res)}`);
 		}
 	} else if (allow > 0) {
-		addLog(`⏳ 未满 5 元（当前 ${allowYuan} 元），暂不提现`);
+		withdrawDesc = `⏳ 未满 5 元（当前 ${allowYuan} 元），暂不提现`;
 	} else {
-		addLog(`ℹ️ 暂无可提现金额`);
+		withdrawDesc = '🔒 自动提现已关闭';
 	}
 
 	saveResult(true);
-	return lines;
+
+	const summaryText = 
+`👤 第 ${index} 个账号
+✨ 签到状态：${signStatus} | 🎯 浏览任务：${taskStatus}
+💰 累计金额: ${sumAwardYuan} 元 | 可提现金额: ${allowYuan} 元
+${withdrawDesc}`;
+
+	return {
+		success: true,
+		summary: summaryText
+	};
 }
 
 // ===== 请求 =====
