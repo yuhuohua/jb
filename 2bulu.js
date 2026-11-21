@@ -83,7 +83,7 @@ var SCRIPT_NAME = "两步路";
 var SCRIPT_VERSION = "v1.0.0";
 var EXPIRE_TIME = 4102358400000;
 var EXPIRE_DATE = "2099-12-31";
-var MESSAGE_SUB_TITLE = "𝑮𝒓𝒆𝒆𝒏 𝑺𝒄𝒓𝒊𝒑𝒕𝑯𝒖𝒃";
+var MESSAGE_SUB_TITLE = "永久会员";
 var MESSAGE_LINK_NAME = "已开通";
 
 var MEMBER_LIST = [
