@@ -113,7 +113,7 @@ for (let i = 0; i < 256; i++) AES_INV_SBOX[AES_SBOX[i]] = i;
 const AES_RCON = [0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36];
 
 function aesKeyExpand(keyBytes) {
-  const Nk = 4, Nb = 4, Nr = 10;
+  const Nk = 4, Nr = 10;
   const W = new Array(4 * (Nr + 1));
   for (let i = 0; i < Nk; i++) {
     W[i] = (keyBytes[4*i] << 24) | (keyBytes[4*i+1] << 16) | (keyBytes[4*i+2] << 8) | keyBytes[4*i+3];
@@ -128,7 +128,6 @@ function aesKeyExpand(keyBytes) {
   return W;
 }
 
-function xtime(a) { return ((a << 1) ^ (a & 0x80 ? 0x1b : 0)) & 0xff; }
 function gmul(a, b) {
   let p = 0;
   for (let i = 0; i < 8; i++) {
@@ -263,6 +262,7 @@ function cmMd5(str) { return md5Hex(str); }
 const REQ_KEY = { '2': 'bAIgvwAuA4tbDr9d', '12': 'V0dSUFZtS1NWRnJa', '14': 'tVkdaRWRY0ZkV1Vr' };
 const REQ_IV  = { '2': '9791027341711819', '12': 'UkdWMVpWTVVWaGVq', '14': 'VjFSQ1ZtVkQxRTlQ' };
 const REQ1_KEY = 'foorettD7vcBawt3';
+const TOK_KEY = 'bAIgvwAuA4tbDr9d';
 const RESP1_KEY = 'UVic06tpXgMNiApm';
 const RESP2_KEY = 'GS7VelkJl5IT1uwQ';
 const RESP14_KEY = 'RYV0hCV1lV25KYVJ';
@@ -270,20 +270,6 @@ const RESP14_IV = 'VjFSQ1ZtVkQxRTlQ';
 const DEFAULT_IV = '9791027341711819';
 
 const UA_WAP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148/wkwebview leadeon/9.2.5/CMCCIT';
-
-const STORE = {
-  paramsEnc: 'cm_params_enc',
-  xqen: 'cm_x_qen',
-  loginUrl: 'cm_login_url',
-  cookie: 'cm_cookie',
-  loginTs: 'cm_login_ts',
-  loginHeaders: 'cm_login_headers',
-  refreshTs: 'cm_refresh_ts',
-  multiDs: 'cm_multi_datasource',
-  primaryPhone: 'cm_primary_phone',
-  cardIndex: 'cm_card_index',
-  multiAuth: 'cm_multi_auth'
-};
 
 function parseArguments() {
   const args = {};
@@ -300,26 +286,30 @@ function parseArguments() {
   return args;
 }
 
-function parseAccounts(accStr) {
-  if (!accStr) return [];
-  const rawList = accStr.split('@');
-  const accounts = [];
-  rawList.forEach((item, index) => {
-    let t = item ? item.trim() : '';
-    if (!t || t.startsWith('//')) return;
-    let label = `卡${index + 1}`;
-    let phone = t;
-    if (t.includes('#')) {
-      const parts = t.split('#');
-      label = parts[0].trim() || label;
-      phone = parts[1].trim();
-    }
-    const match = phone.match(/\d{11}/);
-    if (match) {
-      accounts.push({ label, phone: match[0] });
-    }
-  });
-  return accounts;
+function getStore(prefix) {
+  const p = String(prefix || 'cm1').replace(/[^A-Za-z0-9_]/g, '') || 'cm1';
+  return {
+    prefix: p,
+    paramsEnc: `${p}_params_enc`,
+    xqen: `${p}_x_qen`,
+    loginUrl: `${p}_login_url`,
+    cookie: `${p}_cookie`,
+    loginHeaders: `${p}_login_headers`,
+    refreshTs: `${p}_refresh_ts`,
+    renewOkTs: `${p}_renew_ok_ts`,
+    loginTs: `${p}_login_ts`,
+    datasource: `${p}_datasource`,
+    phoneBackup: `${p}_phone_backup`,
+    daySnap: `${p}_day_snap`,
+    expireFails: `${p}_expire_fails`,
+    expireNotify: `${p}_expire_notify`
+  };
+}
+
+function extractPhone(raw) {
+  if (!raw) return '';
+  const m = String(raw).match(/\d{11}/);
+  return m ? m[0] : '';
 }
 
 function pad2(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -347,21 +337,29 @@ function getHeader(headers, name) {
   return '';
 }
 
-function httpRequest(options) {
+function httpPost(options) {
+  const reqTimeout = options.timeout || 15000;
   return new Promise((resolve, reject) => {
-    $httpClient.post(options, (err, resp, body) => {
-      if (err) return reject(err);
-      resolve({ status: resp.status, headers: resp.headers, body });
+    $httpClient.post(Object.assign({}, options, { timeout: reqTimeout }), (err, resp, body) => {
+      if (err) {
+        return reject(new Error(typeof err === 'string' ? err : (err.message || JSON.stringify(err))));
+      }
+      resolve({ status: resp ? resp.status : 0, headers: (resp && resp.headers) || {}, body });
     });
   });
 }
 
 function isAutoLogin(url) {
-  if (/10086\.online-cmcc\.cn/.test(url)) return true;
-  return /client\.app\.coc\.10086\.cn/.test(url) && /\/biz-orange\/[A-Z]{2}\/.*(autoLogin|refreshSession)/.test(url);
+  if (!url) return false;
+  const cleanUrl = url.replace(/\?.*$/, '');
+  if (/10086\.online-cmcc\.cn/.test(cleanUrl)) {
+    return /(autoLogin|refreshSession|\/login)/i.test(cleanUrl);
+  }
+  return /client\.app\.coc\.10086\.cn/.test(cleanUrl) &&
+    /\/biz-orange\/[A-Z]{2}\/.*(autoLogin|refreshSession)/.test(cleanUrl);
 }
 
-function handleRequestCapture() {
+async function handleRequestCapture(S, args) {
   const url = $request.url || '';
   const headers = $request.headers || {};
   const xqen = String(getHeader(headers, 'x-qen') || '').trim();
@@ -383,83 +381,84 @@ function handleRequestCapture() {
       break;
     } catch (e) {}
   }
-
   if (!plain) return $done({});
-
-  let autoPhone = null;
-  try {
-    const parsedObj = JSON.parse(plain);
-    autoPhone = (parsedObj.reqBody && parsedObj.reqBody.cellNum) || parsedObj.cellNum;
-    if (autoPhone && /^\d{11}$/.test(autoPhone)) {$persistentStore.write(autoPhone, STORE.primaryPhone);
-
-      let multiAuth = {};
-      try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
-
-      const keep = {};
-      for (const k of Object.keys(headers)) {
-        if (/^(cookie|content-length|connection|accept-encoding)$/i.test(k)) continue;
-        keep[k] = Array.isArray(headers[k]) ? headers[k].join(', ') : String(headers[k]);
-      }
-
-      multiAuth[autoPhone] = {
-        paramsEnc: body,
-        xqen: usedQen,
-        loginUrl: url,
-        cookie: String(getHeader(headers, 'cookie') || '').trim(),
-        loginHeaders: JSON.stringify(keep),
-        loginTs: Date.now()
-      };
-      
-      $persistentStore.write(JSON.stringify(multiAuth), STORE.multiAuth);$persistentStore.write('0', `cm_refresh_ts_${autoPhone}`);
-    }
-  } catch (e) {}
-
-  $persistentStore.write(body, STORE.paramsEnc);
-  $persistentStore.write(usedQen, STORE.xqen);$persistentStore.write(url, STORE.loginUrl);
-
-  const cookie = String(getHeader(headers, 'cookie') || '').trim();
-  if (cookie) $persistentStore.write(cookie, STORE.cookie);
 
   const keep = {};
   for (const k of Object.keys(headers)) {
     if (/^(cookie|content-length|connection|accept-encoding)$/i.test(k)) continue;
     keep[k] = Array.isArray(headers[k]) ? headers[k].join(', ') : String(headers[k]);
   }
-  $persistentStore.write(JSON.stringify(keep), STORE.loginHeaders);$persistentStore.write(String(Date.now()), STORE.loginTs);
+  const cookie = String(getHeader(headers, 'cookie') || '').trim();
+  const prevEnc = $persistentStore.read(S.paramsEnc);
+  const changed = prevEnc !== body;
+  const wasExpired = ($persistentStore.read(S.expireNotify) || '0') !== '0';
 
-  if (autoPhone && /^\d{11}$/.test(autoPhone)) {
-    $notification.post('中国移动', `多卡捕获成功: ${autoPhone}`, '独立凭证已安全存储');
-  } else {
-    $notification.post('中国移动', '登录参数捕获成功', '小组件多账号已就绪');
+  let parsedObj = {};
+  try { parsedObj = JSON.parse(plain); } catch (e) {}
+  const capturedPhone = extractPhone((parsedObj.reqBody && parsedObj.reqBody.cellNum) || parsedObj.cellNum || args.phone);
+
+  $persistentStore.write(body, S.paramsEnc);
+  $persistentStore.write(usedQen, S.xqen);
+  $persistentStore.write(url, S.loginUrl);
+  if (cookie) $persistentStore.write(cookie, S.cookie);
+  $persistentStore.write(JSON.stringify(keep), S.loginHeaders);
+  if (capturedPhone) $persistentStore.write(capturedPhone, S.phoneBackup);
+
+  const title = args.title || `中国移动(${S.prefix})`;
+  if (changed) {
+    $persistentStore.write(String(Date.now()), S.loginTs);
+    $persistentStore.write('0', S.refreshTs);
+    $persistentStore.write('0', S.expireFails);
+    if (wasExpired) $persistentStore.write('0', S.expireNotify);
+
+    let selfCheckTip = capturedPhone ? `号码: ${capturedPhone}` : '请及时关闭抓取开关';
+    if (capturedPhone) {
+      try {
+        const q = buildQuery(S, parsedObj, 'fee', capturedPhone);
+        const resp = await httpPost({ url: q.url, headers: q.headers, body: q.body, timeout: 12000 });
+        if (resp && resp.status === 200) {
+          absorbSetCookie(S, resp.headers);
+          const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
+          const data = decodeRespText(String(resp.body || ''), xpen);
+          const feeInfo = (data && (data.rspBody || (data.body && data.body.rspBody))) || {};
+          const feeVal = feeInfo.realBalanceFee || feeInfo.curFee;
+          if (feeVal !== undefined) {
+            selfCheckTip = `号码 ${capturedPhone} · 自检话费 ¥${parseFloat(feeVal).toFixed(2)}（可关闭抓取）`;
+          }
+        }
+      } catch (e) {
+        console.log(`[${S.prefix}] 自检异常: ${e.message || e}`);
+      }
+    }
+    $notification.post(title, wasExpired ? '登录已恢复' : '登录参数捕获成功', selfCheckTip);
   }
 
   $done({});
 }
 
-function handleResponseCapture() {
-  const url = (typeof $request !== 'undefined' && $request) ?$request.url : '';
+function handleResponseCapture(S) {
+  const url = (typeof $request !== 'undefined' && $request) ? ($request.url || '') : '';
   if (!isAutoLogin(url)) return $done({});
   const respHeaders = $response.headers || {};
   const setCookie = String(getHeader(respHeaders, 'set-cookie') || '').trim();
-  
-  if (setCookie) {
-    $persistentStore.write(setCookie, STORE.cookie);
-    
-    const currentPhone = $persistentStore.read(STORE.primaryPhone);
-    if (currentPhone) {
-      let multiAuth = {};
-      try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
-      if (multiAuth[currentPhone]) {
-        multiAuth[currentPhone].cookie = setCookie;
-        $persistentStore.write(JSON.stringify(multiAuth), STORE.multiAuth);
-      }
-    }
+  if (setCookie && $persistentStore.read(S.cookie) !== setCookie) {
+    $persistentStore.write(setCookie, S.cookie);
+    $persistentStore.write(String(Date.now()), S.renewOkTs);
   }
   $done({});
 }
 
-function buildQuery(params, kind, targetPhone, authObj) {
-  const cookie = authObj ? authObj.cookie : ($persistentStore.read(STORE.cookie) || '');
+function getPhone(S, args) {
+  const fromArg = extractPhone(args.phone);
+  if (fromArg) {
+    $persistentStore.write(fromArg, S.phoneBackup);
+    return fromArg;
+  }
+  return extractPhone($persistentStore.read(S.phoneBackup));
+}
+
+function buildQuery(S, params, kind, targetPhone) {
+  const cookie = $persistentStore.read(S.cookie) || '';
   const ts = Date.now();
   const nonce = randomDigits(8);
   const pathname = kind === 'fee'
@@ -473,7 +472,7 @@ function buildQuery(params, kind, targetPhone, authObj) {
   const xk = params.xk || '';
   const tokenEnc = cmEncrypt(`${xk}_${pathname}_${ts}_${nonce}`, REQ1_KEY, DEFAULT_IV);
 
-  const m = cookie.match(/JSESSIONID=(.+?);/);
+  const m = cookie.match(/JSESSIONID=(.+?);/) || cookie.match(/JSESSIONID=([^;\s]+)/);
   const jsid = m ? m[1] : 'null';
   const xsign = cmMd5(`${tokenEnc}_${ts}_${nonce}_${jsid}`);
 
@@ -498,129 +497,154 @@ function buildQuery(params, kind, targetPhone, authObj) {
   };
 }
 
-function absorbSetCookie(headers, phone) {
+function absorbSetCookie(S, headers) {
   const sc = String(getHeader(headers, 'set-cookie') || '').trim();
-  if (sc && /JSESSIONID=/i.test(sc)) {
-    $persistentStore.write(sc, STORE.cookie);
-    if (phone) {
-      let multiAuth = {};
-      try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
-      if (multiAuth[phone]) {
-        multiAuth[phone].cookie = sc;
-        $persistentStore.write(JSON.stringify(multiAuth), STORE.multiAuth);
-      }
-    }
+  if (sc && /JSESSIONID=/i.test(sc) && $persistentStore.read(S.cookie) !== sc) {
+    $persistentStore.write(sc, S.cookie);
     return true;
   }
   return false;
 }
 
-async function autoRefreshSession(phone) {
-  let multiAuth = {};
-  try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
-  let auth = multiAuth[phone];
-
-  const url = auth ? auth.loginUrl : ($persistentStore.read(STORE.loginUrl) || '');
-  const body = auth ? auth.paramsEnc : ($persistentStore.read(STORE.paramsEnc) || '');
-  if (!url || !body) return false;
-  
-  const lastKey = auth ? `cm_refresh_ts_${phone}` : STORE.refreshTs;
-  const last = parseInt($persistentStore.read(lastKey) || '0', 10);
-  
-  if (Date.now() - last < 1 * 60 * 1000) {
-    console.log(`[保活-续期] 账号 ${phone} 距上次刷新不到1分钟，跳过。`);
-    return false;
-  }
-  $persistentStore.write(String(Date.now()), lastKey);
-
-  let headers = {};
-  let headStr = auth ? auth.loginHeaders : ($persistentStore.read(STORE.loginHeaders) || '{}');
-  try { headers = JSON.parse(headStr); } catch (e) {}
-
-  if (!Object.keys(headers).some((k) => /^x-qen$/i.test(k))) headers['x-qen'] = auth ? auth.xqen : ($persistentStore.read(STORE.xqen) || '2');
-  if (!Object.keys(headers).some((k) => /^content-type$/i.test(k))) headers['Content-Type'] = 'application/json';
-  if (!Object.keys(headers).some((k) => /^user-agent$/i.test(k))) headers['User-Agent'] = UA_WAP;
-  
-  const oldCookie = auth ? auth.cookie : ($persistentStore.read(STORE.cookie) || '');
-  if (oldCookie) headers['Cookie'] = oldCookie;
-
-  console.log(`[保活-续期] 尝试为账号 ${phone} 发起刷新请求...`);
-  try {
-    const resp = await httpRequest({ url, headers, body, timeout: 15000 });
-    
-    let plainBody = resp.body;
-    try {
-      const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
-      if (xpen === '1') { plainBody = cmDecrypt(JSON.parse(resp.body).body, RESP1_KEY, DEFAULT_IV); }
-      else if (xpen === '2') { plainBody = cmDecrypt(resp.body, RESP2_KEY, DEFAULT_IV); }
-      else if (xpen === '14') { plainBody = cmDecrypt(resp.body, RESP14_KEY, RESP14_IV); }
-    } catch(e) {}
-
-    console.log(`[保活-续期] 账号 ${phone} 续期请求响应码: ${resp ? resp.status : '无'}`);
-    console.log(`[保活-续期] 账号 ${phone} 续期业务报文: ${plainBody}`);
-    
-    // 增加重新登录、410000 判定作为失败关键词
-    const isSuccessText = !plainBody.includes('失效') && !plainBody.includes('过期') && !plainBody.includes('失败') && !plainBody.includes('未登录') && !plainBody.includes('重新登录') && !plainBody.includes('410000');
-    const success = !!resp && resp.status === 200 && isSuccessText;
-    
-    if (success) {
-      absorbSetCookie(resp.headers, phone);
-    }
-    console.log(`[保活-续期] 最终判定刷新状态: ${success}`);
-    return success;
-  } catch (e) {
-    console.log(`[保活-续期] 账号 ${phone} 续期发生网络异常: ${e.message || e}`);
-    return false;
-  }
+function decodeRespText(text, xpen) {
+  if (xpen === '1') return JSON.parse(cmDecrypt(JSON.parse(text).body, RESP1_KEY, DEFAULT_IV));
+  if (xpen === '2') return JSON.parse(cmDecrypt(text, RESP2_KEY, DEFAULT_IV));
+  if (xpen === '14') return JSON.parse(cmDecrypt(text, RESP14_KEY, RESP14_IV));
+  return JSON.parse(text);
 }
 
-async function queryKind(kind, phone) {
-  console.log(`[查询] 正在获取账号 ${phone} 的 ${kind} 接口数据...`);
-  let multiAuth = {};
-  try { multiAuth = JSON.parse($persistentStore.read(STORE.multiAuth) || '{}'); } catch(e){}
-  let auth = multiAuth[phone];
+function resignHeaders(headers, url, xk, jsid) {
+  const ts = Date.now();
+  const nonce = randomDigits(8);
+  let pathname = '';
+  try { pathname = url.replace(/^https?:\/\/[^/]+/, '').replace(/\?.*$/, ''); } catch (e) {}
+  const out = {};
+  for (const k of Object.keys(headers || {})) {
+    if (/^(x-sign|x-nonce|x-time|x-token)$/i.test(k)) continue;
+    out[k] = headers[k];
+  }
+  const tokenEnc = cmEncrypt(`${xk}_${pathname}_${ts}_${nonce}`, TOK_KEY, DEFAULT_IV);
+  out['x-token'] = tokenEnc;
+  out['x-nonce'] = nonce;
+  out['x-time'] = String(ts);
+  out['x-sign'] = cmMd5(`${tokenEnc}_${ts}_${nonce}_${jsid}`);
+  return out;
+}
 
-  let enc = auth ? auth.paramsEnc : ($persistentStore.read(STORE.paramsEnc) || '');
-  let xqen = auth ? (auth.xqen || '').trim() : ($persistentStore.read(STORE.xqen) || '').trim();
+function renewOk(rc, got) {
+  return got || rc === '0' || rc === '000000' || rc === '200';
+}
 
+async function autoRefreshSession(S, force = false) {
+  const url = $persistentStore.read(S.loginUrl) || '';
+  const body = $persistentStore.read(S.paramsEnc) || '';
+  const xqen = ($persistentStore.read(S.xqen) || '2').trim();
+  if (!url || !body) return false;
+
+  const last = parseInt($persistentStore.read(S.refreshTs) || '0', 10);
+  const cooldown = force ? 15 * 1000 : 5 * 60 * 1000;
+  if (Date.now() - last < cooldown) return false;
+  $persistentStore.write(String(Date.now()), S.refreshTs);
+
+  const base = {};
+  try {
+    const parsedH = JSON.parse($persistentStore.read(S.loginHeaders) || '{}');
+    for (const k of Object.keys(parsedH)) {
+      if (!/^(cookie|content-length|connection|accept-encoding)$/i.test(k)) {
+        base[k] = parsedH[k];
+      }
+    }
+  } catch (e) {}
+
+  if (!Object.keys(base).some((k) => /^x-qen$/i.test(k))) base['x-qen'] = xqen || '2';
+  if (!Object.keys(base).some((k) => /^content-type$/i.test(k))) base['Content-Type'] = 'application/json';
+  if (!Object.keys(base).some((k) => /^user-agent$/i.test(k))) base['User-Agent'] = UA_WAP;
+
+  const oldCookie = $persistentStore.read(S.cookie) || '';
+  if (oldCookie) base['Cookie'] = oldCookie;
+  const jm = oldCookie.match(/JSESSIONID=(.+?)(;|$)/);
+  const jsid = jm ? jm[1] : 'null';
+
+  let params = {};
+  try {
+    if (REQ_KEY[xqen]) params = JSON.parse(cmDecrypt(body, REQ_KEY[xqen], REQ_IV[xqen]));
+  } catch (e) {}
+  const xk = params.xk || '';
+
+  const variants = [
+    { n: 'sign', b: body, j: jsid },
+    { n: 'nulljs', b: body, j: 'null' }
+  ];
+  if (oldCookie && REQ_KEY[xqen] && params && Object.keys(params).length) {
+    try {
+      const nb = cmEncrypt(JSON.stringify(Object.assign({}, params, { t: oldCookie })), REQ_KEY[xqen], REQ_IV[xqen]);
+      variants.push({ n: 'rebody', b: nb, j: jsid });
+    } catch (e) {}
+  }
+
+  for (const v of variants) {
+    try {
+      const headers = resignHeaders(base, url, xk, v.j);
+      const resp = await httpPost({ url, headers, body: v.b, timeout: 15000 });
+      const got = !!resp && absorbSetCookie(S, resp.headers);
+      let rc = '', rd = '';
+      try {
+        const text = String((resp && resp.body) || '');
+        const d = decodeRespText(text, String(getHeader(resp && resp.headers, 'x-pen') || '').trim());
+        rc = String((d && (d.retCode || (d.body && d.body.retCode))) || '');
+        rd = String((d && (d.retDesc || (d.body && d.body.retDesc))) || '').slice(0, 30);
+      } catch (e) {
+        rc = 'undecodable';
+      }
+      console.log(`[${S.prefix}] 自动续期[${v.n}] HTTP=${resp ? resp.status : 'no-resp'} 新Cookie=${got} ret=${rc} desc=${rd}`);
+      if (resp && resp.status === 200 && renewOk(rc, got)) {
+        $persistentStore.write(String(Date.now()), S.renewOkTs);
+        return true;
+      }
+      if (rc && rc !== '950102' && rc !== '950202' && rc !== '-9999' && rc !== 'undecodable' && !/sign|token|解密/i.test(rd)) {
+        break;
+      }
+    } catch (e) {
+      console.log(`[${S.prefix}] 自动续期[${v.n}] 异常: ${e.message || e}`);
+    }
+  }
+  return false;
+}
+
+async function maybeProactiveRenew(S) {
+  const lastOk = parseInt($persistentStore.read(S.renewOkTs) || '0', 10);
+  const loginTs = parseInt($persistentStore.read(S.loginTs) || '0', 10);
+  const since = Date.now() - Math.max(lastOk, loginTs);
+  if (since < 8 * 3600 * 1000) return;
+  await autoRefreshSession(S, false);
+}
+
+async function queryKind(S, kind, phone) {
+  const enc = $persistentStore.read(S.paramsEnc) || '';
+  const xqen = ($persistentStore.read(S.xqen) || '').trim();
   if (!enc || !REQ_KEY[xqen]) {
     const e = new Error('no-params');
     e.stage = 'capture';
     throw e;
   }
-  const plain = cmDecrypt(enc, REQ_KEY[xqen], REQ_IV[xqen]);
-  const params = JSON.parse(plain);
-  const q = buildQuery(params, kind, phone, auth);
-  const resp = await httpRequest({ url: q.url, headers: q.headers, body: q.body, timeout: 15000 });
-
+  const params = JSON.parse(cmDecrypt(enc, REQ_KEY[xqen], REQ_IV[xqen]));
+  const q = buildQuery(S, params, kind, phone);
+  const resp = await httpPost({ url: q.url, headers: q.headers, body: q.body, timeout: 15000 });
   if (!resp || resp.status !== 200) {
-    const e = new Error(`HTTP ${resp ? resp.status : '无响应'}`);
+    const e = new Error(`HTTP ${resp ? resp.status : 'no-response'}`);
     e.stage = 'network';
     throw e;
   }
-  absorbSetCookie(resp.headers, phone);
+  absorbSetCookie(S, resp.headers);
   const text = String(resp.body || '');
   const xpen = String(getHeader(resp.headers, 'x-pen') || '').trim();
-  let data;
   try {
-    if (xpen === '1') {
-      const inner = JSON.parse(text);
-      data = JSON.parse(cmDecrypt(inner.body, RESP1_KEY, DEFAULT_IV));
-    } else if (xpen === '2') {
-      data = JSON.parse(cmDecrypt(text, RESP2_KEY, DEFAULT_IV));
-    } else if (xpen === '14') {
-      data = JSON.parse(cmDecrypt(text, RESP14_KEY, RESP14_IV));
-    } else {
-      data = JSON.parse(text);
-    }
-    console.log(`[查询] 账号 ${phone} 的 ${kind} 接口成功解密响应: ${JSON.stringify(data).substring(0, 200)}`);
+    return decodeRespText(text, xpen);
   } catch (e) {
-    console.log(`[查询] 账号 ${phone} 的 ${kind} 接口解密失败，原始报文: ${text.substring(0, 200)}`);
     const err = new Error('decrypt-failed');
     err.stage = 'decrypt';
     throw err;
   }
-  return data;
 }
 
 function toFlowUnit(remain, unit) {
@@ -633,23 +657,15 @@ function toFlowUnit(remain, unit) {
   return { number: remain.toFixed(2), unit: String(unit || 'MB') };
 }
 
-function deepFindAllFlows(obj, out, seen) {
+function deepFindArrays(obj, keyName, out, seen) {
   if (!obj || typeof obj !== 'object') return;
   if (seen.has(obj)) return;
   seen.add(obj);
-
   if (Array.isArray(obj)) {
-    for (const item of obj) {
-      if (item && typeof item === 'object' && item.flowRemainNum !== undefined) {
-        out.push(item);
-      } else {
-        deepFindAllFlows(item, out, seen);
-      }
-    }
+    if (obj.length && obj[0] && typeof obj[0] === 'object' && keyName in obj[0]) out.push(obj);
+    for (const item of obj) deepFindArrays(item, keyName, out, seen);
   } else {
-    for (const k of Object.keys(obj)) {
-      deepFindAllFlows(obj[k], out, seen);
-    }
+    for (const k of Object.keys(obj)) deepFindArrays(obj[k], keyName, out, seen);
   }
 }
 
@@ -665,153 +681,115 @@ function parseMobile(feeData, planData) {
     unit: '元',
   };
 
-  const rawFlowList = [];
-  deepFindAllFlows(planData, rawFlowList, new Set());
-
-  let genRemain = 0;
-  let genUnit = '03';
-  let hasGen = false;
-  let genSum = 0;
-
-  let otherTotalMb = 0;
-  let otherSumMb = 0;
-  let hasOther = false;
-
-  rawFlowList.forEach((f) => {
-    const remain = parseFloat(f.flowRemainNum || '0');
-    if (!Number.isFinite(remain)) return;
-    const isDirect = String(f.flowtype) === '0';
-    const k = String(f.unit || '03') === '04' ? 1024 : 1;
-    const s = parseFloat(f.flowSumNum || '0');
-
-    if (isDirect) {
-      if (!hasGen) {
-        genRemain = remain;
-        genUnit = String(f.unit || '03');
-        hasGen = true;
-        if (Number.isFinite(s) && s > 0) genSum = s * k;
-      }
-    } else {
-      otherTotalMb += remain * k;
-      if (Number.isFinite(s)) otherSumMb += s * k;
-      hasOther = true;
-    }
-  });
-
-  let flow = { title: '通用', number: '--', unit: '', percent: 0 };
-  if (hasGen) {
-    const u = toFlowUnit(genRemain, genUnit);
-    const curMb = genRemain * (genUnit === '04' ? 1024 : 1);
-    flow = {
-      title: '通用',
-      number: u.number,
-      unit: u.unit,
-      percent: genSum > 0 ? Math.max(0, Math.min(1, curMb / genSum)) : 0.8
-    };
+  const flowArrDirect = Array.isArray(planInfo.planRemianFlowListRes) ? planInfo.planRemianFlowListRes
+    : Array.isArray(planInfo.planRemianFlowRes) ? planInfo.planRemianFlowRes : [];
+  let flowArrAll = flowArrDirect;
+  let flows = flowArrDirect.filter((f) => f && f.flowtype == 0);
+  if (!flows.length && planData) {
+    const found = [];
+    deepFindArrays(planData, 'flowRemainNum', found, new Set());
+    const arr = Array.isArray(found[0]) ? found[0] : [];
+    if (arr.length) flowArrAll = arr;
+    flows = arr.filter((f) => f && f.flowtype == 0);
+    if (!flows.length && arr.length) flows = arr.slice(0, 1);
   }
 
   let otherFlow = { title: '定向', number: '--', unit: '', percent: 0 };
-  if (hasOther) {
-    const u = otherTotalMb >= 1024
-      ? { number: (otherTotalMb / 1024).toFixed(2), unit: 'GB' }
-      : { number: otherTotalMb.toFixed(2), unit: 'MB' };
+  const otherItems = flowArrAll.filter((f) => f && f.flowtype != 0);
+  if (otherItems.length) {
+    let totalMb = 0, sumMb = 0;
+    for (const f of otherItems) {
+      const remain = parseFloat(f.flowRemainNum || '0');
+      if (!Number.isFinite(remain)) continue;
+      const k = String(f.unit || '03') === '04' ? 1024 : 1;
+      totalMb += remain * k;
+      const s = parseFloat(f.flowSumNum || '0');
+      if (Number.isFinite(s)) sumMb += s * k;
+    }
+    const u = totalMb >= 1024
+      ? { number: (totalMb / 1024).toFixed(2), unit: 'GB' }
+      : { number: totalMb.toFixed(2), unit: 'MB' };
     otherFlow = {
       title: '定向',
       number: u.number,
       unit: u.unit,
-      percent: otherSumMb > 0 ? Math.max(0, Math.min(1, otherTotalMb / otherSumMb)) : 0.7
+      percent: sumMb > 0 ? Math.max(0, Math.min(1, totalMb / sumMb)) : 0
     };
   }
 
-  let voice = { title: '语音', number: '--', unit: '分钟', percent: 1.0 };
-  const voiceArrDirect = Array.isArray(planInfo.planRemianVoiceListRes) ? planInfo.planRemianVoiceListRes : [];
-  if (voiceArrDirect.length) {
-    const vRemain = parseInt(voiceArrDirect[0].voiceRemainNum || '0', 10);
-    voice.number = String(Number.isFinite(vRemain) ? vRemain : 0);
-    const vs = parseInt(voiceArrDirect[0].voiceSumNum || '0', 10);
-    if (Number.isFinite(vs) && vs > 0) voice.percent = Math.max(0, Math.min(1, vRemain / vs));
-  } else if (planData) {
-    const vMatch = JSON.stringify(planData).match(/"voiceRemainNum":"?(\d+)"?/);
-    if (vMatch) voice.number = vMatch[1];
+  let flow = { title: '通用', number: '--', unit: '', percent: 0 };
+  if (flows.length) {
+    const remain = parseFloat(flows[0].flowRemainNum || '0');
+    const u = toFlowUnit(remain, String(flows[0].unit || '03'));
+    flow = { title: '通用', number: u.number, unit: u.unit, percent: 0 };
+    const sum = parseFloat(flows[0].flowSumNum || '0');
+    if (Number.isFinite(sum) && sum > 0) flow.percent = Math.max(0, Math.min(1, remain / sum));
   }
 
-  const feeOk = feeInfo && (feeInfo.realBalanceFee != null || feeInfo.curFee != null);
-  const valid = feeOk || hasGen || hasOther || voice.number !== '--';
-  return { fee, flow, otherFlow, voice, updatedAt: Date.now(), valid };
+  const voiceArr = Array.isArray(planInfo.planRemianVoiceListRes) ? planInfo.planRemianVoiceListRes : [];
+  let voices = voiceArr.filter((v) => v && v.voicetype == 0);
+  if (!voices.length && planData) {
+    const found = [];
+    deepFindArrays(planData, 'voiceRemainNum', found, new Set());
+    const arr = Array.isArray(found[0]) ? found[0] : [];
+    voices = arr.filter((v) => v && v.voicetype == 0);
+    if (!voices.length && arr.length) voices = arr.slice(0, 1);
+  }
+  let voice = { title: '语音', number: '--', unit: '分钟', percent: 0 };
+  if (voices.length) {
+    const remain = parseInt(voices[0].voiceRemainNum || '0', 10);
+    voice.number = String(Number.isFinite(remain) ? remain : 0);
+    const vs = parseInt(voices[0].voiceSumNum || '0', 10);
+    if (Number.isFinite(vs) && vs > 0) voice.percent = Math.max(0, Math.min(1, remain / vs));
+  }
+
+  return { fee, flow, otherFlow, voice, updatedAt: Date.now() };
 }
 
-async function fetchAccountData(phone) {
-  const fetchSingle = async () => {
-    const feeData = await queryKind('fee', phone);
-    const planData = await queryKind('plan', phone);
+async function loadData(S, args) {
+  const phone = getPhone(S, args);
+  const hasParams = !!$persistentStore.read(S.paramsEnc);
+  if (!hasParams) return { configured: false, reason: 'capture' };
+  if (!/^\d{11}$/.test(phone)) return { configured: false, reason: 'phone' };
+
+  const fetchAll = async () => {
+    const feeData = await queryKind(S, 'fee', phone);
+    const planData = await queryKind(S, 'plan', phone);
     return parseMobile(feeData, planData);
   };
 
-  let ds = await fetchSingle();
-  if (!ds.valid) {
-    console.log(`[处理] 账号 ${phone} 初次数据无效或鉴权失败，尝试自动续期...`);
-    const refreshed = await autoRefreshSession(phone);
-    if (refreshed) {
-      console.log(`[处理] 账号 ${phone} 续期成功，重新拉取最新数据。`);
-      ds = await fetchSingle();
-    } else {
-      console.log(`[处理] 账号 ${phone} 续期失败或仍在冷却时间内。`);
-    }
-  }
-  if (!ds.valid) throw new Error('登录态失效');
-  return ds;
-}
-
-async function loadMultiData(accounts) {
-  console.log(`[拉取] 准备处理账号列表，共 ${accounts.length} 个账号...`);
-  const hasParams = !!($persistentStore.read(STORE.paramsEnc));
-  if (!hasParams) return { configured: false, reason: 'capture' };
-  if (!accounts || accounts.length === 0) return { configured: false, reason: 'phone' };
-
-  let cachedMap = {};
   try {
-    cachedMap = JSON.parse($persistentStore.read(STORE.multiDs) || '{}');
-  } catch (e) {}
-
-  const results = [];
-  let hasUpdated = false;
-
-  for (const acc of accounts) {
-    console.log(`[拉取] 开始处理账号: ${acc.label} (${acc.phone})`);
-    try {
-      const ds = await fetchAccountData(acc.phone);
-      ds.phone = acc.phone;
-      ds.label = acc.label;
-      results.push({ label: acc.label, phone: acc.phone, ds, success: true });
-      cachedMap[acc.phone] = ds;
-      hasUpdated = true;
-      console.log(`[拉取] 账号 ${acc.phone} 成功拉取到最新数据`);
-    } catch (e) {
-      console.log(`[拉取] 账号 ${acc.phone} 网络拉取失败，尝试使用本地缓存。错误: ${e.message}`);
-      if (cachedMap[acc.phone]) {
-        results.push({ label: acc.label, phone: acc.phone, ds: cachedMap[acc.phone], success: true, fromCache: true });
-      } else {
-        results.push({ label: acc.label, phone: acc.phone, success: false, error: e.message || '查询失败' });
+    let ds = await fetchAll();
+    if (ds.flow.number === '--' && ds.otherFlow.number === '--' && ds.voice.number === '--') {
+      if (await autoRefreshSession(S, true)) {
+        ds = await fetchAll();
       }
     }
-  }
-
-  if (hasUpdated) {
-    $persistentStore.write(JSON.stringify(cachedMap), STORE.multiDs);
-    results.forEach((item, idx) => {
-      if (item.ds) {
-        $persistentStore.write(JSON.stringify(item.ds), `cm_card_${idx + 1}`);
-        $persistentStore.write(JSON.stringify(item.ds), `cm_card_${item.phone}`);
-      }
-    });
-    if (results[0] && results[0].ds) {
-      $persistentStore.write(JSON.stringify(results[0].ds), 'cm_datasource');
+    if (ds.flow.number === '--' && ds.otherFlow.number === '--' && ds.voice.number === '--') {
+      const err = new Error('empty plan');
+      err.stage = 'session';
+      throw err;
     }
-    console.log(`[缓存] 最新数据已覆盖本地持久化存储。`);
+    ds.phone = phone;
+    $persistentStore.write(JSON.stringify(ds), S.datasource);
+    return { configured: true, ds, fromCache: false };
+  } catch (e) {
+    let cached = null;
+    try { cached = JSON.parse($persistentStore.read(S.datasource) || 'null'); } catch (err) {}
+    if (cached && cached.flow && cached.flow.number === '--' && cached.voice && cached.voice.number === '--') {
+      cached = null;
+    }
+    return {
+      configured: true,
+      ds: cached,
+      fromCache: !!cached,
+      error: String((e && e.message) || e),
+      stage: (e && e.stage) || ''
+    };
   }
-
-  return { configured: true, results };
 }
+
+/* ==================== 面板渲染与定时保活 ==================== */
 
 function toMB(d) {
   const n = parseFloat(d && d.number);
@@ -824,7 +802,7 @@ function fmtMB(mb) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)}GB` : `${mb.toFixed(0)}MB`;
 }
 
-function calculateInsights(ds, phone) {
+function calculateInsights(S, ds) {
   const now = new Date();
   const dayKey = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
   const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -833,14 +811,13 @@ function calculateInsights(ds, phone) {
   const _g = toMB(ds.flow), _o = toMB(ds.otherFlow);
   const flowMB = (_g == null && _o == null) ? null : ((_g || 0) + (_o || 0));
 
-  const snapKey = `cm_day_snap_${phone}`;
   let todayMB = null;
   if (flowMB != null) {
     let snap = null;
-    try { snap = JSON.parse($persistentStore.read(snapKey) || 'null'); } catch (e) {}
+    try { snap = JSON.parse($persistentStore.read(S.daySnap) || 'null'); } catch (e) {}
     if (!snap || snap.date !== dayKey || flowMB > snap.start + 1) {
       snap = { date: dayKey, start: flowMB };
-      $persistentStore.write(JSON.stringify(snap), snapKey);
+      $persistentStore.write(JSON.stringify(snap), S.daySnap);
     }
     todayMB = Math.max(0, snap.start - flowMB);
   }
@@ -857,11 +834,8 @@ function getVisualWidth(str) {
   let len = 0;
   for (let i = 0; i < str.length; i++) {
     const c = str.charCodeAt(i);
-    if ((c >= 0x4e00 && c <= 0x9fa5) || (c >= 0xff00 && c <= 0xffef)) {
-      len += 2;
-    } else {
-      len += 1;
-    }
+    if ((c >= 0x4e00 && c <= 0x9fa5) || (c >= 0xff00 && c <= 0xffef)) len += 2;
+    else len += 1;
   }
   return len;
 }
@@ -875,130 +849,111 @@ function padRight(str, targetWidth) {
   return str;
 }
 
-async function renderPanel() {
-  const args = parseArguments();
+async function renderPanel(S, args) {
   const panelTitle = args.title || '中国移动';
-  const accounts = parseAccounts(args.accounts);
+  const r = await loadData(S, args);
 
-  if (accounts.length === 0) {
-    const primary = $persistentStore.read(STORE.primaryPhone);
-    if (primary) accounts.push({ label: '卡1', phone: primary });
-  }
-
-  try {
-    const res = await loadMultiData(accounts);
-
-    if (!res.configured) {
-      $done({
-        title: panelTitle,
-        content: '⚠️ 请在模块参数中填入账号',
-        icon: 'exclamationmark.triangle',
-        'icon-color': '#FF9F0A'
-      });
-      return;
-    }
-
-    let curIdx = parseInt($persistentStore.read(STORE.cardIndex) || '0', 10);
-    if (curIdx >= res.results.length) curIdx = 0;
-    const item = res.results[curIdx];
-    const nextIdx = (curIdx + 1) % res.results.length;
-    $persistentStore.write(String(nextIdx), STORE.cardIndex);
-
-    if (!item.success || !item.ds) {
-      $done({
-        title: `${panelTitle} · ${item.label}`,
-        content: `⚠️ 拉取失败: ${item.error || '登录过期'}`,
-        icon: 'exclamationmark.triangle',
-        'icon-color': '#FF453A'
-      });
-      return;
-    }
-
-    const ds = item.ds;
-    const phone = item.phone;
-    const ins = calculateInsights(ds, phone);
-    const phoneMask = `${phone.slice(0, 3)}****${phone.slice(7)}`;
-
-    const feeStr = `¥${ds.fee.number}`;
-    const voiceStr = ds.voice ? `${ds.voice.number} 分钟` : '--';
-    const flowStr = ds.flow.number !== '--' ? `${ds.flow.number} ${ds.flow.unit}` : '--';
-    const otherFlowStr = ds.otherFlow.number !== '--' ? `${ds.otherFlow.number} ${ds.otherFlow.unit}` : '--';
-    const todayStr = fmtMB(ins.todayMB);
-    const dailyStr = fmtMB(ins.dailyMB);
-
-    const col1 = padRight(`💰 话费: ${feeStr}`, 18) + `📞 语音: ${voiceStr}`;
-    const col2 = padRight(`📶 通用: ${flowStr}`, 18) + `🌐 定向: ${otherFlowStr}`;
-    const col3 = padRight(`📊 今日: ${todayStr}`, 18) + `⏳ 日均: ${dailyStr}`;
-    const col4 = padRight(`🗓️ 剩余: ${ins.daysLeft} 天`, 18) + `🕒 更新: ${fmtTime(ds.updatedAt)}`;
-
-    const titleTag = res.results.length > 1
-      ? `${panelTitle} · ${item.label} ${phoneMask} (${curIdx + 1}/${res.results.length})`
-      : `${panelTitle} · ${phoneMask}`;
-
-    $done({
-      title: titleTag,
-      content: `${col1}\n${col2}\n${col3}\n${col4}`,
-      icon: ins.lowFee ? 'exclamationmark.circle.fill' : 'antenna.radiowaves.left.and.right',
-      'icon-color': ins.lowFee ? '#FF3B30' : '#0A84FF'
-    });
-  } catch (err) {
+  if (!r.configured) {
     $done({
       title: panelTitle,
-      content: `❌ 异常: ${err.message || err}`,
+      content: r.reason === 'phone' ? '⚠️ 请在模块参数中填入手机号' : '⚠️ 请开启抓取开关并在移动 App 登录一次',
+      icon: 'exclamationmark.triangle',
+      'icon-color': '#FF9F0A'
+    });
+    return;
+  }
+
+  if (!r.ds) {
+    $done({
+      title: panelTitle,
+      content: `⚠️ 拉取失败: ${r.error || '登录过期'}`,
       icon: 'exclamationmark.triangle',
       'icon-color': '#FF453A'
     });
+    return;
   }
+
+  const ds = r.ds;
+  const ins = calculateInsights(S, ds);
+  const phone = ds.phone || getPhone(S, args);
+  const phoneMask = phone ? `${phone.slice(0, 3)}****${phone.slice(7)}` : '';
+
+  const feeStr = `¥${ds.fee.number}`;
+  const voiceStr = ds.voice ? `${ds.voice.number} 分钟` : '--';
+  const flowStr = ds.flow.number !== '--' ? `${ds.flow.number} ${ds.flow.unit}` : '--';
+  const otherFlowStr = ds.otherFlow.number !== '--' ? `${ds.otherFlow.number} ${ds.otherFlow.unit}` : '--';
+  const todayStr = fmtMB(ins.todayMB);
+  const dailyStr = fmtMB(ins.dailyMB);
+
+  const col1 = padRight(`💰 话费: ${feeStr}`, 18) + `📞 语音: ${voiceStr}`;
+  const col2 = padRight(`📶 通用: ${flowStr}`, 18) + `🌐 定向: ${otherFlowStr}`;
+  const col3 = padRight(`📊 今日: ${todayStr}`, 18) + `⏳ 日均: ${dailyStr}`;
+  const col4 = padRight(`🗓️ 剩余: ${ins.daysLeft} 天`, 18) + `🕒 更新: ${fmtTime(ds.updatedAt)}`;
+
+  const titleTag = phoneMask ? `${panelTitle} · ${phoneMask}${r.fromCache ? ' (缓存)' : ''}` : panelTitle;
+
+  $done({
+    title: titleTag,
+    content: `${col1}\n${col2}\n${col3}\n${col4}`,
+    icon: ins.lowFee ? 'exclamationmark.circle.fill' : 'antenna.radiowaves.left.and.right',
+    'icon-color': ins.lowFee ? '#FF3B30' : '#0A84FF'
+  });
 }
 
-async function keepAliveTask() {
-  console.log("========== 定时保活/后台刷新任务开始 ==========");
-  const args = parseArguments();
-  const accounts = parseAccounts(args.accounts);
-  
-  if (accounts.length === 0) {
-    const primary = $persistentStore.read(STORE.primaryPhone);
-    if (primary) {
-      console.log(`[任务] 模块参数未填写账号，检测到本地主账号缓存：${primary}`);
-      accounts.push({ label: '卡1', phone: primary });
-    } else {
-      console.log(`[任务] 警告：没有可用账号参数或缓存的主账号，任务将被跳过。`);
-    }
+async function keepAliveTask(S, args) {
+  const title = args.title || `中国移动(${S.prefix})`;
+  console.log(`========== [${title}] 定时保活开始 ==========`);
+  const r = await loadData(S, args);
+  const expired = r.configured && (r.stage === 'session' || !r.ds || r.fromCache);
+
+  if (!expired && r.configured) {
+    try { await maybeProactiveRenew(S); } catch (e) {}
   }
 
-  try {
-    const res = await loadMultiData(accounts);
-    console.log(`[任务] 后台多账号数据拉取结束，执行结果状态：${res.configured}`);
-  } catch (e) {
-    console.log(`[任务] 执行期间发生错误: ${e.message || e}`);
+  if (expired && r.stage === 'session') {
+    const fails = parseInt($persistentStore.read(S.expireFails) || '0', 10) + 1;
+    $persistentStore.write(String(fails), S.expireFails);
+    const last = parseInt($persistentStore.read(S.expireNotify) || '0', 10);
+    if (fails >= 3 && Date.now() - last > 6 * 3600 * 1000) {
+      $persistentStore.write(String(Date.now()), S.expireNotify);
+      $notification.post(title, '登录态已过期', '请开启对应卡的抓取开关，打开中国移动 App 刷新一次');
+    }
+  } else if (!expired && r.configured) {
+    $persistentStore.write('0', S.expireNotify);
+    $persistentStore.write('0', S.expireFails);
   }
-  console.log("========== 定时保活/后台刷新任务结束 ==========");
+
+  console.log(`========== [${title}] 定时保活结束 (缓存=${!!r.fromCache}) ==========`);
   $done({});
 }
 
+/* ==================== 入口 ==================== */
+
 try {
+  const args = parseArguments();
+  const S = getStore(args.prefix);
   const isResp = typeof $response !== 'undefined';
-  const isReq = typeof $request !== 'undefined' && $request &&$request.url;
+  const isReq = typeof $request !== 'undefined' && $request && $request.url;
 
   if (isReq || isResp) {
     const url = $request ? ($request.url || '') : '';
     if (isResp && isAutoLogin(url)) {
-      handleResponseCapture();
+      handleResponseCapture(S);
     } else if (isReq && !isResp && isAutoLogin(url)) {
-      handleRequestCapture();
+      handleRequestCapture(S, args);
     } else {
       $done({});
     }
   } else {
-    const args = parseArguments();
     if (args.action === 'task') {
-      keepAliveTask();
+      keepAliveTask(S, args);
     } else {
-      renderPanel();
+      renderPanel(S, args);
     }
   }
 } catch (globalErr) {
-  if (typeof $request === 'undefined') {$done({
+  if (typeof $request === 'undefined') {
+    $done({
       title: '中国移动',
       content: `执行崩溃: ${globalErr.message || globalErr}`,
       icon: 'exclamationmark.triangle',
